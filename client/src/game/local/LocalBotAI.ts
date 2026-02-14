@@ -5,6 +5,8 @@ export interface GameInput {
   right: boolean;
 }
 
+import { hasLineOfSight as raycastHasLineOfSight, getWaypointAroundWall } from './raycast';
+
 interface Wall {
   x: number;
   y: number;
@@ -26,39 +28,6 @@ export function getBotName(index: number): string {
   return BOT_NAMES[index % BOT_NAMES.length];
 }
 
-function hasLineOfSight(
-  ox: number, oy: number,
-  tx: number, ty: number,
-  walls: Wall[],
-  maxDist = 2000
-): boolean {
-  const dx = tx - ox;
-  const dy = ty - oy;
-  const dist = Math.hypot(dx, dy);
-  if (dist > maxDist) return false;
-  const nx = dist > 0 ? dx / dist : 0;
-  const ny = dist > 0 ? dy / dist : 0;
-  const ex = ox + nx * dist;
-  const ey = oy + ny * dist;
-
-  for (const wall of walls) {
-    const segs: [number, number, number, number][] = [
-      [wall.x, wall.y, wall.x + wall.width, wall.y],
-      [wall.x + wall.width, wall.y, wall.x + wall.width, wall.y + wall.height],
-      [wall.x + wall.width, wall.y + wall.height, wall.x, wall.y + wall.height],
-      [wall.x, wall.y + wall.height, wall.x, wall.y],
-    ];
-    for (const [x1, y1, x2, y2] of segs) {
-      const denom = (ox - ex) * (y1 - y2) - (oy - ey) * (x1 - x2);
-      if (Math.abs(denom) < 1e-10) continue;
-      const t = ((x1 - ox) * (y1 - y2) - (y1 - oy) * (x1 - x2)) / denom;
-      const u = -((ox - ex) * (y1 - oy) - (oy - ey) * (x1 - ox)) / denom;
-      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return false;
-    }
-  }
-  return true;
-}
-
 function angleDiff(a: number, b: number): number {
   let d = b - a;
   while (d > Math.PI) d -= 2 * Math.PI;
@@ -67,6 +36,99 @@ function angleDiff(a: number, b: number): number {
 }
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface BotMapContext {
+  mapWidth: number;
+  mapHeight: number;
+  enemySpawnPoints: { x: number; y: number }[];
+  pickups?: { x: number; y: number; type: string }[];
+}
+
+const AMMO_SEEK_THRESHOLD = 15;
+
+/** Ближайший пикап патронов, если боту нужны патроны */
+function getNearestAmmoPickup(
+  botX: number,
+  botY: number,
+  pickups: { x: number; y: number; type: string }[] | undefined
+): { gx: number; gy: number } | null {
+  if (!pickups?.length) return null;
+  const ammoPickups = pickups.filter((p) => p.type === 'ammo');
+  if (ammoPickups.length === 0) return null;
+  let best = ammoPickups[0];
+  let bestD = Math.hypot(best.x - botX, best.y - botY);
+  for (let i = 1; i < ammoPickups.length; i++) {
+    const p = ammoPickups[i];
+    const d = Math.hypot(p.x - botX, p.y - botY);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return { gx: best.x, gy: best.y };
+}
+
+/** Цель для движения, когда враг не виден: патроны / центр карты / зона спавна врагов */
+function getHuntGoal(
+  botX: number,
+  botY: number,
+  enemies: PlayerLike[],
+  mapContext: BotMapContext | undefined,
+  botId: string,
+  tick: number,
+  ammoReserve: number
+): { gx: number; gy: number } | null {
+  if (ammoReserve <= AMMO_SEEK_THRESHOLD) {
+    const ammoGoal = getNearestAmmoPickup(botX, botY, mapContext?.pickups);
+    if (ammoGoal) return ammoGoal;
+  }
+  if (enemies.length > 0) {
+    const nearest = enemies.reduce((a, e) =>
+      Math.hypot(e.x - botX, e.y - botY) < Math.hypot(a.x - botX, a.y - botY) ? e : a
+    );
+    return { gx: nearest.x, gy: nearest.y };
+  }
+  if (!mapContext || mapContext.enemySpawnPoints.length === 0) {
+    if (mapContext) {
+      const cx = mapContext.mapWidth / 2;
+      const cy = mapContext.mapHeight / 2;
+      const hash = (botId.split('').reduce((h, c) => h + c.charCodeAt(0), 0) + tick) % 100;
+      const jitter = (hash - 50) * 2;
+      return { gx: cx + jitter, gy: cy + (hash % 20 - 10) };
+    }
+    return null;
+  }
+  const sp = mapContext.enemySpawnPoints;
+  const cx = sp.reduce((s, p) => s + p.x, 0) / sp.length;
+  const cy = sp.reduce((s, p) => s + p.y, 0) / sp.length;
+  const hash = (botId.split('').reduce((h, c) => h + c.charCodeAt(0), 0) + Math.floor(tick / 30)) % 100;
+  const jitter = (hash - 50) * 1.5;
+  return { gx: cx + jitter, gy: cy + (hash % 30 - 15) };
+}
+
+function applyMoveToward(input: GameInput, botX: number, botY: number, gx: number, gy: number) {
+  const dx = gx - botX;
+  const dy = gy - botY;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 40) return;
+  const mx = dx / dist;
+  const my = dy / dist;
+  if (mx > 0.25) input.right = true;
+  else if (mx < -0.25) input.left = true;
+  if (my > 0.25) input.down = true;
+  else if (my < -0.25) input.up = true;
+}
+
+/** Цель движения: если прямая перекрыта стеной — идём к углу стены (обход). */
+function getMoveTarget(
+  botX: number, botY: number,
+  gx: number, gy: number,
+  walls: Wall[]
+): { gx: number; gy: number } {
+  if (raycastHasLineOfSight(botX, botY, gx, gy, walls)) return { gx, gy };
+  const wp = getWaypointAroundWall(botX, botY, gx, gy, walls);
+  return wp ?? { gx, gy };
+}
 
 export function computeBotAction(
   botId: string,
@@ -77,28 +139,59 @@ export function computeBotAction(
   players: PlayerLike[],
   walls: Wall[],
   tick: number,
-  difficulty: BotDifficulty = 'medium'
-): { input: GameInput; angle: number; shoot: boolean } {
+  difficulty: BotDifficulty = 'medium',
+  mapContext?: BotMapContext,
+  ammo = 999,
+  ammoReserve = 999
+): { input: GameInput; angle: number; shoot: boolean; wantReload: boolean } {
+  const totalAmmo = ammo + ammoReserve;
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
-  const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
+  const baseReaction = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
   const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
   const moveFreq = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.5 : 0.85;
+  const huntChance = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.75 : 0.95;
 
+  // Найти ближайшего видимого врага
   let target: PlayerLike | null = null;
   let minDist = Infinity;
   for (const e of enemies) {
     const d = Math.hypot(e.x - botX, e.y - botY);
-    if (d < minDist && hasLineOfSight(botX, botY, e.x, e.y, walls)) {
+    if (d < minDist && raycastHasLineOfSight(botX, botY, e.x, e.y, walls)) {
       minDist = d;
       target = e;
     }
   }
 
+  const reactionChance = minDist < 220 ? 1 : baseReaction;
+
   const input: GameInput = { up: false, down: false, left: false, right: false };
   let angle = botAngle;
   let shoot = false;
+  let wantReload = false;
 
-  if (target && Math.random() < reactionChance) {
+  // Приоритет 1: если совсем нет патронов — искать пикап с патронами
+  const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
+  const ammoGoal = needsAmmo ? getNearestAmmoPickup(botX, botY, mapContext?.pickups) : null;
+
+  if (totalAmmo === 0 && ammoGoal) {
+    const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
+    applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
+    angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
+  } else if (ammo === 0 && ammoReserve > 0) {
+    // Магазин пуст, но есть резерв — перезарядка + уклонение от врага
+    wantReload = true;
+    if (target) {
+      const away = Math.atan2(botY - target.y, botX - target.x);
+      const mx = Math.cos(away);
+      const my = Math.sin(away);
+      if (mx > 0.3) input.right = true;
+      else if (mx < -0.3) input.left = true;
+      if (my > 0.3) input.down = true;
+      else if (my < -0.3) input.up = true;
+      angle = Math.atan2(target.y - botY, target.x - botX);
+    }
+  } else if (target && Math.random() < reactionChance && ammo > 0) {
+    // Есть видимая цель и патроны в магазине — бой
     const toTarget = Math.atan2(target.y - botY, target.x - botX);
     const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
     angle = toTarget + err;
@@ -123,13 +216,27 @@ export function computeBotAction(
       if (my > 0.3) input.down = true;
       else if (my < -0.3) input.up = true;
     }
-  } else if (tick % 60 < 30 && Math.random() < 0.1) {
-    const dir = Math.floor(Math.random() * 4);
-    if (dir === 0) input.up = true;
-    else if (dir === 1) input.down = true;
-    else if (dir === 2) input.left = true;
-    else input.right = true;
+  } else {
+    // Нет видимой цели или шанс не сработал — патруль / поиск патронов (с обходом стен)
+    if (ammoGoal) {
+      const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
+      applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
+      angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
+    } else {
+      const goal = getHuntGoal(botX, botY, enemies, mapContext, botId, tick, totalAmmo);
+      if (goal && Math.random() < huntChance) {
+        const moveTo = getMoveTarget(botX, botY, goal.gx, goal.gy, walls);
+        applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
+        angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
+      } else if (tick % 40 < 20 && Math.random() < 0.25) {
+        const dir = Math.floor((tick / 20 + botId.length) % 4);
+        if (dir === 0) input.up = true;
+        else if (dir === 1) input.down = true;
+        else if (dir === 2) input.left = true;
+        else input.right = true;
+      }
+    }
   }
 
-  return { input, angle, shoot };
+  return { input, angle, shoot, wantReload };
 }

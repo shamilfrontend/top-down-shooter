@@ -30,8 +30,8 @@ const weaponIconWidth: Record<string, number> = {
 };
 
 const slots = [
-  { key: 0, label: '1', weapon: props.weapons?.[0] ?? null },
-  { key: 1, label: '2', weapon: props.weapons?.[1] ?? 'usp' },
+  { key: 1, label: '1', weapon: props.weapons?.[1] ?? 'usp' },
+  { key: 0, label: '2', weapon: props.weapons?.[0] ?? null },
 ];
 
 function getSlotWeapon(key: number): string | null {

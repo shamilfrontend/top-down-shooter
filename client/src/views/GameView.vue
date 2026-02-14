@@ -11,6 +11,7 @@ import GameHUD from '@/components/GameHUD.vue';
 import ShopModal from '@/components/ShopModal.vue';
 
 const BOT_DIFFICULTY_KEY = 'trainingBotDifficulty';
+const TRAINING_MAP_KEY = 'trainingMapId';
 
 function loadBotDifficulty(): BotDifficulty {
   const saved = localStorage.getItem(BOT_DIFFICULTY_KEY);
@@ -21,7 +22,8 @@ const route = useRoute();
 const router = useRouter();
 
 const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
-const { fetchMap } = useMaps();
+const selectedMapId = ref<string>((route.params.mapId as string) || localStorage.getItem(TRAINING_MAP_KEY) || 'dust2');
+const { fetchMap, fetchMapsList, mapsList } = useMaps();
 const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -66,8 +68,9 @@ const sortedScoreboardPlayers = computed(() => {
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
-function applyBotDifficulty() {
+function applySettings() {
   localStorage.setItem(BOT_DIFFICULTY_KEY, botDifficulty.value);
+  localStorage.setItem(TRAINING_MAP_KEY, selectedMapId.value);
   engine?.stop();
   localSession?.stop();
   engine = null;
@@ -85,7 +88,7 @@ function onScoreboardKey(e: KeyboardEvent) {
 }
 
 async function init() {
-  const mapId = (route.params.mapId as string) || 'dust2';
+  const mapId = selectedMapId.value;
   const canvas = canvasRef.value;
   if (!canvas) return;
 
@@ -164,7 +167,8 @@ function exitGame() {
 }
 
 let killFeedInterval: ReturnType<typeof setInterval> | null = null;
-onMounted(() => {
+onMounted(async () => {
+  await fetchMapsList();
   init();
   killFeedInterval = setInterval(() => {
     const now = Date.now();
@@ -182,12 +186,18 @@ onUnmounted(() => {
   engine = null;
 });
 
-watch(() => route.params.mapId, () => {
-  localSession?.stop();
-  localSession = null;
-  engine?.stop();
-  init();
-});
+watch(
+  () => route.params.mapId,
+  (mapId) => {
+    if (mapId) {
+      selectedMapId.value = mapId as string;
+      localSession?.stop();
+      localSession = null;
+      engine?.stop();
+      init();
+    }
+  }
+);
 </script>
 
 <template>
@@ -208,7 +218,11 @@ watch(() => route.params.mapId, () => {
           <input v-model="botDifficulty" type="radio" value="hard" />
           <span>Сложный</span>
         </label>
-        <button type="button" class="btn-cs btn-apply" @click="applyBotDifficulty">Применить</button>
+        <span class="bot-difficulty-label map-sep">Карта:</span>
+        <select v-model="selectedMapId" class="select-map">
+          <option v-for="m in mapsList" :key="m.id" :value="m.id">{{ m.name }}</option>
+        </select>
+        <button type="button" class="btn-cs btn-apply" @click="applySettings">Применить</button>
       </div>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
       <div class="game-header-actions">
@@ -349,6 +363,17 @@ watch(() => route.params.mapId, () => {
   color: #ccc;
 }
 .bot-difficulty-opt input { accent-color: var(--cs-orange); }
+.map-sep {
+  margin-left: 1rem;
+}
+.select-map {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  background: #2a2a3e;
+  border: 1px solid var(--cs-panel-border);
+  border-radius: 6px;
+  color: #eee;
+}
 .btn-apply {
   padding: 0.25rem 0.6rem;
   font-size: 0.85rem;

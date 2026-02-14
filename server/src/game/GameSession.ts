@@ -357,7 +357,6 @@ class GameSession {
     if (!def || !def.price) return;
     if (p.credits < def.price) return;
     if (weaponId === 'ak47' || weaponId === 'm4') {
-      if (p.weapons[0]) return;
       p.credits -= def.price;
       p.weapons[0] = weaponId;
       p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };

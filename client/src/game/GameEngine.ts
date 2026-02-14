@@ -154,10 +154,10 @@ export class GameEngine {
           if (!isRepeat) this.onOpenShop?.();
           break;
         case 'Digit1':
-          if (!isRepeat) this.onSwitchWeapon?.(0);
+          if (!isRepeat) this.onSwitchWeapon?.(1);
           break;
         case 'Digit2':
-          if (!isRepeat) this.onSwitchWeapon?.(1);
+          if (!isRepeat) this.onSwitchWeapon?.(0);
           break;
       }
     };

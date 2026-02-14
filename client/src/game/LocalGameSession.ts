@@ -1,7 +1,7 @@
 import type { MapConfig } from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './local/weapons';
-import { raycast } from './local/raycast';
+import { raycast, getWallDist } from './local/raycast';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
 import { computeBotAction, getBotName } from './local/LocalBotAI';
 
@@ -279,7 +279,8 @@ export class LocalGameSession {
 
     const hit = raycast(p.x, p.y, shotAngle, def.range, 0, this.map.walls, players, id);
 
-    const trailDist = hit ? hit.dist : def.range;
+    const wallDist = getWallDist(p.x, p.y, shotAngle, def.range, this.map.walls);
+    const trailDist = hit ? Math.min(hit.dist, wallDist) : wallDist;
     const trailEndX = p.x + Math.cos(shotAngle) * trailDist;
     const trailEndY = p.y + Math.sin(shotAngle) * trailDist;
     this.onShotTrail?.(p.x, p.y, trailEndX, trailEndY);
@@ -338,7 +339,6 @@ export class LocalGameSession {
     if (!def || !def.price) return;
     if (p.credits < def.price) return;
     if (weaponId === 'ak47' || weaponId === 'm4') {
-      if (p.weapons[0]) return;
       p.credits -= def.price;
       p.weapons[0] = weaponId;
       p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };
@@ -449,10 +449,17 @@ export class LocalGameSession {
           isAlive: op.isAlive,
         }));
         const difficulty = this.options.botDifficulty ?? 'medium';
-        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty);
+        const mapContext = {
+          mapWidth: this.map.width,
+          mapHeight: this.map.height,
+          enemySpawnPoints: (p.team === 'ct' ? this.map.spawnPoints.t : this.map.spawnPoints.ct).map((s) => ({ x: s.x + 15, y: s.y + 15 })),
+          pickups: getActivePickups(this.pickups, now).map((pu) => ({ x: pu.x, y: pu.y, type: pu.type })),
+        };
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve);
         p.lastInput = action.input;
         p.angle = action.angle;
         if (action.shoot) this.shoot(p.id);
+        if (action.wantReload) this.reload(p.id);
       }
     }
 
