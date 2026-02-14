@@ -482,148 +482,226 @@ export class GameEngine {
       ctx.stroke();
     });
 
-    // Рендер персонажей
+    // Рендер персонажей (top-down вид человека)
     allPlayers.forEach((p) => {
       const visible = !this.fogOfWar || this.isVisible(px, py, p.x, p.y);
       if (!visible) return;
 
       const isCT = p.team === 'ct';
       const R = PLAYER_RADIUS;
+      const a = p.angle;
+      const cosA = Math.cos(a);
+      const sinA = Math.sin(a);
+
+      // Цвета экипировки
+      const torsoColor = !p.isAlive ? '#3a3a3a' : isCT ? '#2b4a7a' : '#5c6b3a';
+      const torsoBorder = !p.isAlive ? '#2a2a2a' : isCT ? '#1e3558' : '#3e4a28';
+      const headColor = !p.isAlive ? '#4a4a4a' : isCT ? '#5a7ab0' : '#c4a265';
+      const headBorder = !p.isAlive ? '#333' : isCT ? '#3a5a88' : '#8a7040';
+      const skinColor = !p.isAlive ? '#555' : '#d4a574';
+      const gearColor = !p.isAlive ? '#333' : isCT ? '#384e70' : '#4a5530';
 
       // --- Тень ---
       if (p.isAlive) {
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
         ctx.beginPath();
-        ctx.ellipse(p.x + 3, p.y + 3, R * 1.05, R * 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(p.x + 3, p.y + 4, R * 1.1, R * 0.85, a, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // --- Оружие (рисуем до тела, чтоб ствол шёл из-за спины) ---
-      const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
-      const wepOffsetAngle = 0.15; // чуть правее центра
-      const wepAngle = p.angle + wepOffsetAngle;
-      const wepStartX = p.x + Math.cos(wepAngle) * R * 0.5;
-      const wepStartY = p.y + Math.sin(wepAngle) * R * 0.5;
-      const wepEndX = p.x + Math.cos(p.angle) * (R + wep.len);
-      const wepEndY = p.y + Math.sin(p.angle) * (R + wep.len);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(a);
 
       if (p.isAlive) {
+        // --- Ноги (два небольших овала позади торса) ---
+        const legOffsetX = -R * 0.35;
+        const legSpreadY = R * 0.55;
+        ctx.fillStyle = !p.isAlive ? '#333' : isCT ? '#1e3050' : '#3a4428';
+        // Левая нога
+        ctx.beginPath();
+        ctx.ellipse(legOffsetX, -legSpreadY, R * 0.28, R * 0.22, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Правая нога
+        ctx.beginPath();
+        ctx.ellipse(legOffsetX, legSpreadY, R * 0.28, R * 0.22, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- Торс (овал) ---
+        ctx.fillStyle = torsoBorder;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.72, R * 0.58, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = torsoColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.68, R * 0.54, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Детали бронежилета / разгрузки
+        ctx.strokeStyle = gearColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.45, R * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // --- Руки ---
+        const armLen = R * 0.55;
+        const handR = R * 0.15;
+        // Левая рука (не оружейная) — отведена
+        const lArmAngle = -Math.PI * 0.4;
+        const lArmX = Math.cos(lArmAngle) * armLen;
+        const lArmY = Math.sin(lArmAngle) * armLen;
+        ctx.fillStyle = skinColor;
+        ctx.beginPath();
+        ctx.arc(lArmX, lArmY, handR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Предплечье
+        ctx.strokeStyle = torsoColor;
+        ctx.lineWidth = R * 0.16;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(0, -R * 0.4);
+        ctx.lineTo(lArmX, lArmY);
+        ctx.stroke();
+
+        // Правая рука (оружейная) — вытянута вперёд
+        const rArmAngle = Math.PI * 0.2;
+        const rArmDist = armLen * 0.85;
+        const rArmX = Math.cos(rArmAngle) * rArmDist;
+        const rArmY = Math.sin(rArmAngle) * rArmDist;
+        // Предплечье
+        ctx.strokeStyle = torsoColor;
+        ctx.lineWidth = R * 0.16;
+        ctx.beginPath();
+        ctx.moveTo(0, R * 0.35);
+        ctx.lineTo(rArmX, rArmY);
+        ctx.stroke();
+
+        // --- Оружие ---
+        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+        const wepStartX = rArmX;
+        const wepStartY = rArmY * 0.4;
+        const wepEndX = R + wep.len;
+        const wepEndY = 0;
         ctx.strokeStyle = wep.color;
-        ctx.lineWidth = wep.width / scale;
+        ctx.lineWidth = wep.width;
         ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(wepStartX, wepStartY);
         ctx.lineTo(wepEndX, wepEndY);
         ctx.stroke();
         ctx.lineCap = 'butt';
-
         // Дульный срез
-        if (p.weapon) {
-          ctx.fillStyle = '#333';
-          ctx.beginPath();
-          ctx.arc(wepEndX, wepEndY, 1.5 / scale, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // --- Тело ---
-      const bodyColor = !p.isAlive
-        ? '#3a3a3a'
-        : isCT
-          ? '#3b7dd8' // синий CT
-          : '#d04040'; // красный T
-      const bodyColorDark = !p.isAlive
-        ? '#2a2a2a'
-        : isCT
-          ? '#2b5da8'
-          : '#a03030';
-
-      // Внешний контур (outline)
-      ctx.fillStyle = bodyColorDark;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R + 1.5 / scale, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Основное тело
-      ctx.fillStyle = bodyColor;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Блик (объём)
-      if (p.isAlive) {
-        const grad = ctx.createRadialGradient(
-          p.x - R * 0.3, p.y - R * 0.3, R * 0.1,
-          p.x, p.y, R
-        );
-        grad.addColorStop(0, 'rgba(255,255,255,0.25)');
-        grad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = grad;
+        ctx.fillStyle = '#222';
         ctx.beginPath();
-        ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+        ctx.arc(wepEndX, wepEndY, 2, 0, Math.PI * 2);
         ctx.fill();
+
+        // Правая кисть на оружии
+        ctx.fillStyle = skinColor;
+        ctx.beginPath();
+        ctx.arc(rArmX, rArmY, handR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // --- Голова ---
+        const headDist = R * 0.3;
+        const headR = R * 0.32;
+        ctx.fillStyle = headBorder;
+        ctx.beginPath();
+        ctx.arc(headDist, 0, headR + 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = headColor;
+        ctx.beginPath();
+        ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isCT) {
+          // Каска — дуга на голове
+          ctx.strokeStyle = '#3d5c8a';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(headDist, 0, headR * 1.05, -Math.PI * 0.6, Math.PI * 0.6);
+          ctx.stroke();
+          // Визор очков
+          ctx.fillStyle = 'rgba(150,200,255,0.4)';
+          ctx.fillRect(headDist + headR * 0.3, -headR * 0.3, headR * 0.6, headR * 0.6);
+        } else {
+          // Балаклава — тёмная маска
+          ctx.fillStyle = 'rgba(30,25,20,0.5)';
+          ctx.beginPath();
+          ctx.arc(headDist, 0, headR * 0.85, -Math.PI * 0.5, Math.PI * 0.5);
+          ctx.fill();
+          // Прорезь для глаз
+          ctx.fillStyle = '#eee';
+          ctx.fillRect(headDist + headR * 0.2, -headR * 0.15, headR * 0.35, headR * 0.3);
+        }
+
+        // Блик на голове
+        const hGrad = ctx.createRadialGradient(
+          headDist - headR * 0.2, -headR * 0.2, headR * 0.05,
+          headDist, 0, headR
+        );
+        hGrad.addColorStop(0, 'rgba(255,255,255,0.2)');
+        hGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = hGrad;
+        ctx.beginPath();
+        ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Мёртвый — лежащий силуэт
+        ctx.fillStyle = '#3a3a3a';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.7, R * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2;
+        const cr = R * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(-cr, -cr);
+        ctx.lineTo(cr, cr);
+        ctx.moveTo(cr, -cr);
+        ctx.lineTo(-cr, cr);
+        ctx.stroke();
       }
 
-      // Местный игрок — белая обводка
+      ctx.restore();
+
+      // Местный игрок — маркер
       if (p.isLocal && p.isAlive) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 1.5 / scale;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, R + 0.5 / scale, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, R + 2, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // --- Направление взгляда (визир) ---
-      if (p.isAlive) {
-        const visorLen = R * 0.7;
-        const visorX = p.x + Math.cos(p.angle) * (R * 0.5);
-        const visorY = p.y + Math.sin(p.angle) * (R * 0.5);
-        const visorEndX = visorX + Math.cos(p.angle) * visorLen;
-        const visorEndY = visorY + Math.sin(p.angle) * visorLen;
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth = 2 / scale;
-        ctx.beginPath();
-        ctx.moveTo(visorX, visorY);
-        ctx.lineTo(visorEndX, visorEndY);
-        ctx.stroke();
-      }
-
-      // --- HP bar (над персонажем) ---
+      // --- HP bar ---
       if (p.isAlive && p.health < 100) {
         const barW = R * 2.2;
         const barH = 3;
         const barX = p.x - barW / 2;
         const barY = p.y - R - 10;
-        // Фон
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(barX, barY, barW, barH);
-        // HP
         const hpPct = Math.max(0, p.health / 100);
         const hpColor = hpPct > 0.5 ? '#4caf50' : hpPct > 0.25 ? '#ff9800' : '#f44336';
         ctx.fillStyle = hpColor;
         ctx.fillRect(barX, barY, barW * hpPct, barH);
       }
 
-      // --- Имя (над HP) ---
+      // --- Имя ---
       if (p.isAlive) {
-        ctx.fillStyle = isCT ? 'rgba(120,180,255,0.85)' : 'rgba(255,130,130,0.85)';
-        ctx.font = `bold ${9}px sans-serif`;
+        ctx.fillStyle = isCT ? 'rgba(120,180,255,0.85)' : 'rgba(255,180,100,0.85)';
+        ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.fillText(p.username, p.x, p.y - R - 12);
-      }
-
-      // Мёртвый — крестик
-      if (!p.isAlive) {
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2 / scale;
-        const cr = R * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(p.x - cr, p.y - cr);
-        ctx.lineTo(p.x + cr, p.y + cr);
-        ctx.moveTo(p.x + cr, p.y - cr);
-        ctx.lineTo(p.x - cr, p.y + cr);
-        ctx.stroke();
       }
     });
 

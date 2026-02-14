@@ -10,7 +10,9 @@ const TICK_MS = 1000 / TICK_RATE;
 const PLAYER_RADIUS = 23;
 const ROUND_TIME_MS = 180 * 1000;
 const ROUND_END_DELAY_MS = 5000;
-const BOT_COUNT = 2;
+/** Союзников (игрок + боты CT) считаем «нами»; соперников (T) делаем в 2 раза больше */
+const CT_BOT_COUNT = 1;
+const OPPONENT_MULTIPLIER = 2;
 
 export interface LocalPlayer {
   id: string;
@@ -117,17 +119,52 @@ export class LocalGameSession {
       reloadEndTime: 0,
     });
 
-    for (let i = 0; i < BOT_COUNT; i++) {
-      const team: 'ct' | 't' = i === 0 ? 't' : 'ct';
-      const points = team === 'ct' ? spawns.ct : spawns.t;
-      const idx = team === 'ct' ? ctIdx++ : tIdx++;
+    const ourCount = 1 + CT_BOT_COUNT; // игрок + союзные боты
+    const tBotCount = ourCount * OPPONENT_MULTIPLIER; // соперников в 2 раза больше
+    let botIndex = 0;
+
+    for (let i = 0; i < CT_BOT_COUNT; i++) {
+      const points = spawns.ct;
+      const idx = ctIdx++;
       const spBot = points[idx % points.length] || { x: 100, y: 100 };
-      const botId = `bot-${i}`;
+      const botId = `bot-${botIndex++}`;
       const pDef = WEAPONS[pistol];
       this.players.set(botId, {
         id: botId,
-        team,
-        username: getBotName(i),
+        team: 'ct',
+        username: getBotName(botIndex - 1),
+        x: spBot.x + 30,
+        y: spBot.y + 30,
+        angle: 0,
+        vx: 0,
+        vy: 0,
+        health: 100,
+        weapon: pistol,
+        ammo: pDef.magazineSize,
+        ammoReserve: 24,
+        isAlive: true,
+        kills: 0,
+        deaths: 0,
+        credits: CREDITS_START,
+        weapons: [null, pistol],
+        currentSlot: 1,
+        weaponAmmo: {},
+        lastInput: { up: false, down: false, left: false, right: false },
+        lastShotTime: 0,
+        reloadEndTime: 0,
+      });
+    }
+
+    for (let i = 0; i < tBotCount; i++) {
+      const points = spawns.t;
+      const idx = tIdx++;
+      const spBot = points[idx % points.length] || { x: 100, y: 100 };
+      const botId = `bot-${botIndex++}`;
+      const pDef = WEAPONS[pistol];
+      this.players.set(botId, {
+        id: botId,
+        team: 't',
+        username: getBotName(botIndex - 1),
         x: spBot.x + 30,
         y: spBot.y + 30,
         angle: 0,
