@@ -33,14 +33,14 @@ export function setupSocketHandlers(io: Server): void {
     const auth = getAuth(socket);
     const username = auth?.username || `Guest-${socket.id.slice(0, 6)}`;
 
-    socket.on('room:create', (options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; bots?: { enabled?: boolean; difficulty?: 'easy' | 'medium' | 'hard'; count?: number } }) => {
+    socket.on('room:create', (options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; team?: 'ct' | 't' }) => {
       const room = RoomStore.create(socket.id, auth?.userId, username, {
         name: options.name || 'Комната',
         password: options.password,
         map: options.map,
         maxPlayers: options.maxPlayers,
         roundsToWin: options.roundsToWin,
-        bots: options.bots,
+        team: options.team,
       });
       socket.join(room.id);
       socket.emit('room:created', RoomStore.toState(room));
@@ -81,15 +81,21 @@ export function setupSocketHandlers(io: Server): void {
       }
     });
 
-    socket.on('room:changeTeam', (team: 'ct' | 't') => {
-      const room = RoomStore.setTeam(socket.id, team);
+    socket.on('room:takeSlot', (slotIndex: number) => {
+      const room = RoomStore.takeSlot(socket.id, slotIndex);
       if (room) {
         io.to(room.id).emit('room:update', RoomStore.toState(room));
       }
     });
 
-    socket.on('room:changeBots', (bots: { enabled?: boolean; difficulty?: 'easy' | 'medium' | 'hard'; count?: number }) => {
-      const room = RoomStore.setBots(socket.id, bots);
+    socket.on('room:addBot', (data: { slotIndex: number; difficulty: 'easy' | 'medium' | 'hard' }) => {
+      const room = RoomStore.addBot(socket.id, data.slotIndex, data.difficulty);
+      if (room) {
+        io.to(room.id).emit('room:update', RoomStore.toState(room));
+      }
+    });
+    socket.on('room:removeBot', (data: { slotIndex: number }) => {
+      const room = RoomStore.removeBot(socket.id, data.slotIndex);
       if (room) {
         io.to(room.id).emit('room:update', RoomStore.toState(room));
       }
@@ -101,9 +107,14 @@ export function setupSocketHandlers(io: Server): void {
         socket.emit('room:error', 'Только хост может начать игру');
         return;
       }
-      const minPlayers = room.bots.enabled && room.bots.count > 0 ? 1 : 2;
-      if (room.players.size < minPlayers) {
-        socket.emit('room:error', minPlayers === 1 ? 'Добавьте хотя бы 1 игрока или включите ботов' : 'Нужно минимум 2 игрока');
+      const filledSlots = room.slots.filter((s) => s.player !== null || s.bot !== null).length;
+      if (filledSlots < 2) {
+        socket.emit('room:error', 'Нужно минимум 2 занятых слота (игроки или боты)');
+        return;
+      }
+      const allReady = room.slots.every((s) => !s.player || s.player.socketId === room.hostId || s.player.isReady);
+      if (!allReady) {
+        socket.emit('room:error', 'Все игроки должны быть готовы');
         return;
       }
       room.status = 'playing';

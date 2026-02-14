@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRoomStore } from '@/stores/room';
 import { useSocket } from '@/composables/useSocket';
+
 const router = useRouter();
 const room = useRoomStore();
 const { connect, socket } = useSocket();
@@ -13,6 +14,29 @@ const isHost = computed(() => {
   if (!s || !r) return false;
   return r.hostId === s.id;
 });
+
+const slots = computed(() => room.currentRoom?.slots ?? []);
+const pending = computed(() => room.currentRoom?.pending ?? []);
+const half = computed(() => Math.floor(slots.value.length / 2));
+const slotsCt = computed(() => slots.value.slice(0, half.value));
+const slotsT = computed(() => slots.value.slice(half.value));
+
+const iAmPending = computed(() => pending.value.some((p) => p.socketId === socket.value?.id));
+const mySlotIndex = computed(() => room.currentRoom?.slots?.findIndex((s) => s.player?.socketId === socket.value?.id) ?? -1);
+const iHaveSlot = computed(() => mySlotIndex.value >= 0);
+const myReady = computed(() => {
+  const idx = mySlotIndex.value;
+  if (idx < 0) return false;
+  return room.currentRoom?.slots?.[idx]?.player?.isReady ?? false;
+});
+
+const addBotSlotIndex = ref<number | null>(null);
+
+const difficultyLabels: Record<'easy' | 'medium' | 'hard', string> = {
+  easy: 'Лёгкая',
+  medium: 'Средняя',
+  hard: 'Сложная',
+};
 
 onMounted(() => {
   if (!room.currentRoom) {
@@ -41,31 +65,22 @@ function leave() {
 }
 
 function toggleReady() {
-  const me = room.currentRoom?.players.find(
-    (p) => p.socketId === socket.value?.id
-  );
-  room.setReady(!me?.isReady);
+  room.setReady(!myReady.value);
 }
-
-const bots = computed(() => room.currentRoom?.bots ?? { enabled: false, difficulty: 'medium' as const, count: 1 });
 
 function canStart() {
   if (!isHost.value || !room.currentRoom) return false;
-  const allReady = room.currentRoom.players.every((p) => p.isReady || p.isHost);
-  const minPlayers = bots.value.enabled && bots.value.count > 0 ? 1 : 2;
-  return room.currentRoom.players.length >= minPlayers && allReady;
+  const filled = room.currentRoom.slots.filter((s) => s.player !== null || s.bot !== null).length;
+  if (filled < 2) return false;
+  const allReady = room.currentRoom.slots.every(
+    (s) => !s.player || s.player.socketId === room.currentRoom!.hostId || s.player.isReady
+  );
+  return allReady;
 }
 
-function toggleBots() {
-  room.changeBots({ enabled: !bots.value.enabled });
-}
-
-function setBotCount(n: number) {
-  room.changeBots({ count: Math.max(0, Math.min(8, n)) });
-}
-
-function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
-  room.changeBots({ difficulty: d });
+function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
+  room.addBot(slotIndex, difficulty);
+  addBotSlotIndex.value = null;
 }
 </script>
 
@@ -75,7 +90,7 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
       <div class="header-orange"></div>
       <h1 class="title">{{ room.currentRoom?.name }}</h1>
       <div class="header-actions">
-        <span class="map-badge">{{ room.currentRoom?.map }}</span>
+        <span class="map-badge">{{ room.currentRoom?.map }} · {{ room.currentRoom?.maxPlayers }} слотов</span>
         <button type="button" class="btn-cs" @click="leave">Выйти</button>
       </div>
     </header>
@@ -85,60 +100,112 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
     </div>
 
     <main class="room-content">
+      <p v-if="iAmPending" class="pending-hint">Выберите слот в одной из команд</p>
+      <p v-if="pending.length && !iAmPending" class="pending-list">
+        Ожидают выбора: {{ pending.map((p) => p.username).join(', ') }}
+      </p>
+
       <div class="teams">
         <div class="team team-ct">
-          <h3>CT ({{ room.currentRoom?.teams.ct.length ?? 0 }})</h3>
-          <div
-            v-for="p in room.currentRoom?.teams.ct"
-            :key="p.socketId"
-            class="player-row panel-cs"
-            :class="{ host: p.isHost, ready: p.isReady }"
-          >
-            <span class="player-name">{{ p.username }}</span>
-            <span v-if="p.isHost" class="badge">Хост</span>
-            <span v-else-if="p.isReady" class="badge ready">Готов</span>
+          <h3>Спецназ</h3>
+          <div v-for="(slot, idx) in slotsCt" :key="'ct-' + idx" class="slot-row panel-cs">
+            <template v-if="slot.player">
+              <span class="player-name">{{ slot.player.username }}</span>
+              <span v-if="slot.player.socketId === room.currentRoom?.hostId" class="badge">Хост</span>
+              <span v-else-if="slot.player.isReady" class="badge ready">Готов</span>
+            </template>
+            <template v-else-if="slot.bot">
+              <span class="player-name bot-name">Бот ({{ difficultyLabels[slot.bot.difficulty] }})</span>
+              <button
+                v-if="isHost"
+                type="button"
+                class="btn-remove-bot"
+                title="Удалить"
+                @click="room.removeBot(idx)"
+              >×</button>
+            </template>
+            <template v-else>
+              <span class="slot-empty">Пусто</span>
+              <button
+                v-if="iAmPending"
+                type="button"
+                class="btn-cs btn-slot-take"
+                @click="room.takeSlot(idx)"
+              >
+                Выбрать
+              </button>
+              <template v-else-if="isHost">
+                <button
+                  type="button"
+                  class="btn-cs btn-add-bot"
+                  @click="addBotSlotIndex = addBotSlotIndex === idx ? null : idx"
+                >
+                  Добавить бота
+                </button>
+                <div v-if="addBotSlotIndex === idx" class="add-bot-levels">
+                  <button type="button" class="btn-cs btn-level" @click="addBot(idx, 'easy')">Лёгкая</button>
+                  <button type="button" class="btn-cs btn-level" @click="addBot(idx, 'medium')">Средняя</button>
+                  <button type="button" class="btn-cs btn-level" @click="addBot(idx, 'hard')">Сложная</button>
+                </div>
+              </template>
+            </template>
           </div>
         </div>
         <div class="team team-t">
-          <h3>T ({{ room.currentRoom?.teams.t.length ?? 0 }})</h3>
-          <div
-            v-for="p in room.currentRoom?.teams.t"
-            :key="p.socketId"
-            class="player-row panel-cs"
-            :class="{ host: p.isHost, ready: p.isReady }"
-          >
-            <span class="player-name">{{ p.username }}</span>
-            <span v-if="p.isHost" class="badge">Хост</span>
-            <span v-else-if="p.isReady" class="badge ready">Готов</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="isHost" class="bots-section panel-cs">
-        <h4>Боты</h4>
-        <label class="bots-toggle">
-          <input type="checkbox" :checked="bots.enabled" @change="toggleBots" />
-          <span>Включить ботов</span>
-        </label>
-        <div v-if="bots.enabled" class="bots-options">
-          <div class="bots-row">
-            <span>Количество:</span>
-            <input type="number" min="0" max="8" class="input-cs" :value="bots.count" @input="setBotCount(+(($event.target as HTMLInputElement).value) || 0)" />
-          </div>
-          <div class="bots-row">
-            <span>Сложность:</span>
-            <select class="select-cs" :value="bots.difficulty" @change="setBotDifficulty(($event.target as HTMLSelectElement).value as 'easy'|'medium'|'hard')">
-              <option value="easy">Лёгкая</option>
-              <option value="medium">Средняя</option>
-              <option value="hard">Сложная</option>
-            </select>
+          <h3>Террористы</h3>
+          <div v-for="(slot, idx) in slotsT" :key="'t-' + idx" class="slot-row panel-cs">
+            <template v-if="slot.player">
+              <span class="player-name">{{ slot.player.username }}</span>
+              <span v-if="slot.player.socketId === room.currentRoom?.hostId" class="badge">Хост</span>
+              <span v-else-if="slot.player.isReady" class="badge ready">Готов</span>
+            </template>
+            <template v-else-if="slot.bot">
+              <span class="player-name bot-name">Бот ({{ difficultyLabels[slot.bot.difficulty] }})</span>
+              <button
+                v-if="isHost"
+                type="button"
+                class="btn-remove-bot"
+                title="Удалить"
+                @click="room.removeBot(half + idx)"
+              >×</button>
+            </template>
+            <template v-else>
+              <span class="slot-empty">Пусто</span>
+              <button
+                v-if="iAmPending"
+                type="button"
+                class="btn-cs btn-slot-take"
+                @click="room.takeSlot(half + idx)"
+              >
+                Выбрать
+              </button>
+              <template v-else-if="isHost">
+                <button
+                  type="button"
+                  class="btn-cs btn-add-bot"
+                  @click="addBotSlotIndex = addBotSlotIndex === half + idx ? null : half + idx"
+                >
+                  Добавить бота
+                </button>
+                <div v-if="addBotSlotIndex === half + idx" class="add-bot-levels">
+                  <button type="button" class="btn-cs btn-level" @click="addBot(half + idx, 'easy')">Лёгкая</button>
+                  <button type="button" class="btn-cs btn-level" @click="addBot(half + idx, 'medium')">Средняя</button>
+                  <button type="button" class="btn-cs btn-level" @click="addBot(half + idx, 'hard')">Сложная</button>
+                </div>
+              </template>
+            </template>
           </div>
         </div>
       </div>
 
       <div class="controls">
-        <button type="button" class="btn-cs" @click="toggleReady">
-          {{ room.currentRoom?.players.find((p) => p.socketId === socket?.id)?.isReady ? 'Отменить готовность' : 'Готов' }}
+        <button
+          v-if="iHaveSlot"
+          type="button"
+          class="btn-cs"
+          @click="toggleReady"
+        >
+          {{ myReady ? 'Отменить готовность' : 'Готов' }}
         </button>
         <button
           v-if="isHost"
@@ -196,6 +263,16 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
   text-align: center;
   border-bottom: 1px solid #5a2020;
 }
+.pending-hint {
+  color: var(--cs-orange);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.pending-list {
+  color: var(--cs-text-dim);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
 .room-content {
   padding: 24px;
   max-width: 800px;
@@ -218,15 +295,20 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
 .team-t h3 {
   color: #d4a574;
 }
-.player-row {
+.slot-row {
   padding: 8px 12px;
   margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   border: 1px solid var(--cs-panel-border);
 }
-.player-row.ready {
+.slot-row .player-name {
+  flex: 1;
+  min-width: 0;
+}
+.slot-row.ready {
   border-left: 3px solid #4caf50;
   padding-left: 10px;
 }
@@ -237,40 +319,48 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
 .badge.ready {
   color: #4caf50;
 }
-.bots-section {
-  margin-bottom: 20px;
-  padding: 14px;
-  border: 1px solid var(--cs-panel-border);
+.bot-name {
+  color: var(--cs-text-dim);
 }
-.bots-section h4 {
-  margin: 0 0 10px;
+.slot-empty {
+  color: var(--cs-text-dim);
   font-size: 13px;
+  flex: 1;
 }
-.bots-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.btn-slot-take,
+.btn-add-bot {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.btn-remove-bot {
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  color: var(--cs-text-dim);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 1.2rem;
+  line-height: 1;
 }
-.bots-options {
-  margin-top: 10px;
+.btn-remove-bot:hover {
+  color: var(--cs-orange);
+}
+.add-bot-levels {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 6px;
+  width: 100%;
+  flex-wrap: wrap;
 }
-.bots-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.bots-row .input-cs {
-  width: 64px;
+.btn-level {
+  flex: 1;
+  min-width: 70px;
+  font-size: 11px;
+  padding: 4px 8px;
 }
 
 .controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
 }

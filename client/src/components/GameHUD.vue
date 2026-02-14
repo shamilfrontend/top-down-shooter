@@ -113,13 +113,15 @@ function isSelected(key: number): boolean {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  font-family: Tahoma, Arial, sans-serif;
 }
 .hud-top {
-  padding: 1rem 2rem;
+  padding: 12px 20px;
 }
 .score {
   font-size: 1.5rem;
   font-weight: 700;
+  letter-spacing: 0.05em;
 }
 .team-ct {
   color: #6b9bd1;
@@ -128,46 +130,47 @@ function isSelected(key: number): boolean {
   color: #d4a574;
 }
 .sep {
-  margin: 0 0.5rem;
-  color: #888;
+  margin: 0 6px;
+  color: var(--cs-text-dim);
 }
 .credits-bar {
-  margin-top: 0.25rem;
-  font-size: 1rem;
+  margin-top: 4px;
+  font-size: 14px;
   font-weight: 600;
-  color: #4ade80;
+  color: var(--cs-orange);
 }
 .round-info {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  color: #aaa;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--cs-text-dim);
 }
 .round-timer {
-  margin-left: 1rem;
+  margin-left: 12px;
   font-weight: 600;
+  color: var(--cs-orange);
 }
 .hud-bottom {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 1rem 1.5rem;
+  padding: 12px 20px;
 }
 .hud-left {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 .hp-bar {
   width: 200px;
-  height: 24px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 4px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--cs-panel-border);
   overflow: hidden;
   position: relative;
 }
 .hp-fill {
   height: 100%;
-  background: linear-gradient(90deg, #e74c3c, #2ecc71);
+  background: linear-gradient(90deg, #c0392b, #27ae60);
   transition: width 0.2s;
 }
 .hp-text {
@@ -176,55 +179,52 @@ function isSelected(key: number): boolean {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.85rem;
+  font-size: 12px;
   font-weight: 600;
   text-shadow: 0 1px 2px #000;
+  color: #fff;
 }
 .weapon-slots {
   display: flex;
-  gap: 0.5rem;
+  gap: 6px;
 }
 .weapon-slot {
-  width: 44px;
-  height: 36px;
-  background: rgba(0, 0, 0, 0.5);
-  border: 2px solid #444;
-  border-radius: 6px;
+  width: 42px;
+  height: 34px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--cs-panel-border);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 11px;
 }
 .weapon-slot.selected {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.2);
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  border-color: var(--cs-orange);
+  background: rgba(232, 146, 46, 0.15);
 }
 .weapon-slot.empty {
   opacity: 0.5;
 }
 .slot-key {
-  font-size: 0.65rem;
-  color: #888;
+  font-size: 10px;
+  color: var(--cs-text-dim);
 }
 .slot-icon-bar {
   display: block;
-  height: 4px;
-  background: #aaa;
-  border-radius: 1px;
+  height: 3px;
+  background: var(--cs-orange);
 }
 .slot-icon-empty {
-  font-size: 0.8rem;
+  font-size: 12px;
   color: #555;
 }
 .weapon-icon-bar {
   display: inline-block;
   vertical-align: middle;
-  height: 4px;
-  background: #fff;
-  border-radius: 1px;
-  margin-right: 0.35rem;
+  height: 3px;
+  background: var(--cs-orange);
+  margin-right: 4px;
 }
 .weapon-info {
   display: flex;
@@ -232,24 +232,22 @@ function isSelected(key: number): boolean {
 }
 .weapon-name {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 13px;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-}
-.weapon-icon {
-  font-size: 1.1rem;
+  gap: 4px;
+  color: var(--cs-text);
 }
 .ammo {
-  font-size: 0.9rem;
-  color: #aaa;
+  font-size: 12px;
+  color: var(--cs-text-dim);
 }
 .hud-right .stats {
   display: flex;
-  gap: 1rem;
-  font-size: 0.95rem;
+  gap: 12px;
+  font-size: 13px;
 }
 .stat {
-  color: #ccc;
+  color: var(--cs-text-dim);
 }
 </style>

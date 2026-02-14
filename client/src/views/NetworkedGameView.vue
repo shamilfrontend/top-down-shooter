@@ -47,6 +47,23 @@ const mapId = ref('dust2');
 
 const gameOver = ref<{ winner: 'ct' | 't'; players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }> } | null>(null);
 
+interface KillFeedEntry {
+  killerName: string;
+  victimName: string;
+  time: number;
+}
+const killFeed = ref<KillFeedEntry[]>([]);
+const KILL_FEED_DURATION_MS = 5000;
+const KILL_FEED_MAX = 6;
+const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
+
+const scoreboardOpen = ref(false);
+const scoreboardPlayers = ref<ServerPlayer[]>([]);
+const sortedScoreboardPlayers = computed(() => {
+  const list = [...scoreboardPlayers.value];
+  return list.sort((a, b) => (a.team !== b.team ? (a.team === 'ct' ? -1 : 1) : b.kills - a.kills));
+});
+
 const sortedGameOverPlayers = computed(() => {
   if (!gameOver.value) return [];
   return [...gameOver.value.players].sort((a, b) => {
@@ -105,17 +122,34 @@ async function init() {
     });
 
     const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
+      scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
     };
     const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
+      scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
     };
-    const onGameEvent = (data: { type: string; playerId?: string; weapon?: string; winner?: 'ct' | 't'; players?: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>; trail?: { x1: number; y1: number; x2: number; y2: number } }) => {
+    const onGameEvent = (data: {
+      type: string;
+      playerId?: string;
+      weapon?: string;
+      winner?: 'ct' | 't';
+      players?: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>;
+      trail?: { x1: number; y1: number; x2: number; y2: number };
+      killerName?: string;
+      victimName?: string;
+    }) => {
       if (data.type === 'shot') {
         if (data.weapon) playShot(data.weapon);
         if (data.trail && engine) engine.addBulletTrail(data.trail.x1, data.trail.y1, data.trail.x2, data.trail.y2);
       } else if (data.type === 'reloadStart') {
         playReload();
+      } else if (data.type === 'kill') {
+        killFeed.value.push({
+          killerName: data.killerName ?? '?',
+          victimName: data.victimName ?? '?',
+          time: Date.now(),
+        });
       } else if (data.type === 'roundEnd') {
         if (data.winner === 'ct') playWinCt();
         else if (data.winner === 't') playWinTer();
@@ -142,9 +176,27 @@ async function init() {
   }
 }
 
-onMounted(init);
+let killFeedInterval: ReturnType<typeof setInterval> | null = null;
+function onScoreboardKey(e: KeyboardEvent) {
+  if (e.code === 'Tab') {
+    e.preventDefault();
+    scoreboardOpen.value = !scoreboardOpen.value;
+  } else if (e.code === 'Escape') {
+    scoreboardOpen.value = false;
+  }
+}
+onMounted(() => {
+  init();
+  killFeedInterval = setInterval(() => {
+    const now = Date.now();
+    killFeed.value = killFeed.value.filter((e) => now - e.time < KILL_FEED_DURATION_MS);
+  }, 500);
+  window.addEventListener('keydown', onScoreboardKey);
+});
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onScoreboardKey);
+  if (killFeedInterval) clearInterval(killFeedInterval);
   engine?.stop();
   engine = null;
 });
@@ -161,7 +213,7 @@ watch(() => route.params.roomId, () => {
       <h2>Сетевая игра</h2>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
       <div class="game-header-actions">
-        <button type="button" class="btn-exit" @click="exitToLobby">Выйти</button>
+        <button type="button" class="btn-cs" @click="exitToLobby">Выйти</button>
         <button
           type="button"
           class="btn-fullscreen"
@@ -174,6 +226,50 @@ watch(() => route.params.roomId, () => {
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
       <canvas ref="canvasRef" class="game-canvas" />
+      <div v-if="killFeedVisible.length" class="kill-feed">
+        <div
+          v-for="(entry, i) in killFeedVisible"
+          :key="i"
+          class="kill-feed-entry"
+        >
+          <span class="kill-feed-killer">{{ entry.killerName }}</span>
+          <span class="kill-feed-sep"> → </span>
+          <span class="kill-feed-victim">{{ entry.victimName }}</span>
+        </div>
+      </div>
+      <div v-if="scoreboardOpen" class="scoreboard-overlay">
+        <div class="scoreboard panel-cs">
+          <div class="scoreboard-header">
+            <span class="scoreboard-score">
+              <span class="team-ct">{{ hudState.scoreCt }}</span>
+              <span class="scoreboard-sep">:</span>
+              <span class="team-t">{{ hudState.scoreT }}</span>
+            </span>
+            <span class="scoreboard-round">Раунд {{ hudState.round }}</span>
+            <span class="scoreboard-time">
+              {{ Math.floor((hudState.roundTimeLeft ?? 0) / 60) }}:{{ String((hudState.roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
+            </span>
+          </div>
+          <div class="scoreboard-table">
+            <div class="scoreboard-row scoreboard-head">
+              <span>Игрок</span>
+              <span>K</span>
+              <span>D</span>
+            </div>
+            <div
+              v-for="p in sortedScoreboardPlayers"
+              :key="p.id"
+              class="scoreboard-row"
+              :class="p.team"
+            >
+              <span class="scoreboard-name">{{ p.username }}</span>
+              <span>{{ p.kills }}</span>
+              <span>{{ p.deaths }}</span>
+            </div>
+          </div>
+          <p class="scoreboard-hint">TAB или ESC — закрыть</p>
+        </div>
+      </div>
       <GameHUD v-bind="hudState" />
       <ShopModal
         :show="shopOpen"
@@ -183,8 +279,8 @@ watch(() => route.params.roomId, () => {
         @buy="(id) => { socket?.emit('player:buy', id); shopOpen = false; }"
       />
       <div v-if="gameOver" class="game-over-overlay">
-        <div class="game-over-card">
-          <h2>{{ gameOver.winner === 'ct' ? 'CT' : 'T' }} победили!</h2>
+        <div class="game-over-card panel-cs">
+          <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'CT' : 'T' }} ПОБЕДИЛИ!</h2>
           <div class="stats-table">
             <div class="stats-header">
               <span>Игрок</span>
@@ -204,7 +300,7 @@ watch(() => route.params.roomId, () => {
               <span>{{ p.deaths }}</span>
             </div>
           </div>
-          <button type="button" class="btn-exit" @click="exitToLobby">
+          <button type="button" class="btn-cs btn-cs-primary" @click="exitToLobby">
             Выход
           </button>
         </div>
@@ -218,12 +314,109 @@ watch(() => route.params.roomId, () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #1a1a2e;
+  background: var(--cs-bg);
 }
 .game-header {
   position: relative;
   padding: 0.75rem 1rem;
-  background: #1e1e32;
+  background: var(--cs-bg-secondary);
+  border-bottom: 1px solid var(--cs-panel-border);
+}
+.kill-feed {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 12px;
+}
+.kill-feed-entry {
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.75);
+  border-left: 3px solid var(--cs-orange);
+  color: var(--cs-text);
+}
+.kill-feed-killer {
+  color: var(--cs-orange);
+  font-weight: 600;
+}
+.kill-feed-sep {
+  color: var(--cs-text-dim);
+  margin: 0 4px;
+}
+.kill-feed-victim {
+  color: #ccc;
+}
+.scoreboard-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: auto;
+}
+.scoreboard {
+  padding: 20px 28px;
+  border: 1px solid var(--cs-panel-border);
+  min-width: 320px;
+  max-width: 90%;
+  font-family: Tahoma, Arial, sans-serif;
+}
+.scoreboard-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cs-panel-border);
+}
+.scoreboard-score {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.scoreboard-score .team-ct { color: #6b9bd1; }
+.scoreboard-score .team-t { color: #d4a574; }
+.scoreboard-sep { margin: 0 4px; color: var(--cs-text-dim); }
+.scoreboard-round,
+.scoreboard-time {
+  font-size: 13px;
+  color: var(--cs-text-dim);
+}
+.scoreboard-time {
+  color: var(--cs-orange);
+  font-weight: 600;
+}
+.scoreboard-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scoreboard-row {
+  display: grid;
+  grid-template-columns: 1fr 40px 40px;
+  gap: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.scoreboard-row.scoreboard-head {
+  color: var(--cs-text-dim);
+  font-size: 12px;
+  border-bottom: 1px solid var(--cs-panel-border);
+  margin-bottom: 4px;
+}
+.scoreboard-row.ct .scoreboard-name { color: #6b9bd1; }
+.scoreboard-row.t .scoreboard-name { color: #d4a574; }
+.scoreboard-hint {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--cs-text-dim);
+  text-align: center;
 }
 .game-header-actions {
   position: absolute;
@@ -233,10 +426,9 @@ watch(() => route.params.roomId, () => {
   align-items: center;
   gap: 0.5rem;
 }
-.game-header-actions .btn-exit {
+.game-header-actions .btn-cs {
   padding: 0.35rem 0.8rem;
   font-size: 0.9rem;
-  font-weight: 500;
 }
 .btn-fullscreen {
   padding: 0.35rem 0.6rem;
@@ -272,24 +464,24 @@ watch(() => route.params.roomId, () => {
 .game-over-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1001;
 }
 .game-over-card {
-  background: #1e1e32;
-  border: 1px solid #444;
-  border-radius: 12px;
-  padding: 1.5rem 2rem;
+  padding: 24px 32px;
+  border: 1px solid var(--cs-panel-border);
   min-width: 320px;
   text-align: center;
+  font-family: Tahoma, Arial, sans-serif;
 }
-.game-over-card h2 {
-  margin: 0 0 1rem;
-  font-size: 1.5rem;
-  color: #6b9bd1;
+.game-over-title {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  color: var(--cs-orange);
 }
 .stats-table {
   margin-bottom: 1.25rem;
@@ -313,16 +505,8 @@ watch(() => route.params.roomId, () => {
 }
 .stats-row.ct { color: #6b9bd1; }
 .stats-row.t { color: #d4a574; }
-.btn-exit {
-  padding: 0.6rem 2rem;
-  background: #4a90d9;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-exit:hover {
-  background: #5a9fe9;
+.game-over-card .btn-cs-primary {
+  margin-top: 8px;
+  padding: 8px 24px;
 }
 </style>

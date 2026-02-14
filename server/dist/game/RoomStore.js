@@ -4,36 +4,41 @@ exports.RoomStore = void 0;
 const DEFAULT_MAP = 'dust2';
 const DEFAULT_MAX_PLAYERS = 10;
 const DEFAULT_ROUNDS_TO_WIN = 10;
-const DEFAULT_BOTS = {
-    enabled: false,
-    difficulty: 'medium',
-    count: 1,
-};
 class RoomStoreClass {
     constructor() {
         this.rooms = new Map();
     }
     create(hostSocketId, hostUserId, hostUsername, options) {
         const id = crypto.randomUUID();
-        const player = {
-            socketId: hostSocketId,
-            userId: hostUserId,
-            username: hostUsername,
-            team: 'ct',
-            isReady: false,
-            isHost: true,
-        };
+        const maxPlayers = options.maxPlayers ?? DEFAULT_MAX_PLAYERS;
+        const hostTeam = options.team ?? 'ct';
+        const half = Math.floor(maxPlayers / 2);
+        const hostSlotIndex = hostTeam === 'ct' ? 0 : half;
+        const slots = [];
+        for (let i = 0; i < maxPlayers; i++) {
+            const team = i < half ? 'ct' : 't';
+            if (i === hostSlotIndex) {
+                slots.push({
+                    team,
+                    player: { socketId: hostSocketId, userId: hostUserId, username: hostUsername, isReady: false },
+                    bot: null,
+                });
+            }
+            else {
+                slots.push({ team, player: null, bot: null });
+            }
+        }
         const room = {
             id,
             name: options.name,
             password: options.password,
             map: options.map ?? DEFAULT_MAP,
-            maxPlayers: options.maxPlayers ?? DEFAULT_MAX_PLAYERS,
+            maxPlayers,
             roundsToWin: options.roundsToWin ?? DEFAULT_ROUNDS_TO_WIN,
-            bots: { ...DEFAULT_BOTS, ...options.bots },
+            slots,
+            pending: new Map(),
             hostId: hostSocketId,
             status: 'waiting',
-            players: new Map([[hostSocketId, player]]),
             createdAt: new Date(),
         };
         this.rooms.set(id, room);
@@ -44,7 +49,9 @@ class RoomStoreClass {
     }
     getRoomBySocket(socketId) {
         for (const room of this.rooms.values()) {
-            if (room.players.has(socketId))
+            if (room.pending.has(socketId))
+                return room;
+            if (room.slots.some((s) => s.player?.socketId === socketId))
                 return room;
         }
         return undefined;
@@ -57,10 +64,14 @@ class RoomStoreClass {
             name: r.name,
             map: r.map,
             maxPlayers: r.maxPlayers,
-            playerCount: r.players.size,
+            playerCount: this.countPlayersInRoom(r),
             hasPassword: !!r.password,
             status: r.status,
         }));
+    }
+    countPlayersInRoom(room) {
+        const inSlots = room.slots.filter((s) => s.player !== null).length;
+        return inSlots + room.pending.size;
     }
     join(roomId, socketId, userId, username, password) {
         const room = this.rooms.get(roomId);
@@ -68,102 +79,111 @@ class RoomStoreClass {
             return { success: false, error: 'Комната не найдена' };
         if (room.status !== 'waiting')
             return { success: false, error: 'Игра уже началась' };
-        if (room.players.size >= room.maxPlayers)
-            return { success: false, error: 'Комната заполнена' };
+        if (room.pending.has(socketId) || room.slots.some((s) => s.player?.socketId === socketId))
+            return { success: false, error: 'Вы уже в комнате' };
         if (room.password && room.password !== password)
             return { success: false, error: 'Неверный пароль' };
-        if (room.players.has(socketId))
-            return { success: false, error: 'Вы уже в комнате' };
-        const team = this.getTeamWithFewerPlayers(room);
-        const player = {
-            socketId,
-            userId,
-            username,
-            team,
-            isReady: false,
-            isHost: false,
-        };
-        room.players.set(socketId, player);
+        const playersInSlots = room.slots.filter((s) => s.player !== null).length;
+        if (playersInSlots + room.pending.size >= room.maxPlayers)
+            return { success: false, error: 'Комната заполнена' };
+        room.pending.set(socketId, { userId, username });
         return { success: true };
+    }
+    takeSlot(socketId, slotIndex) {
+        const room = this.getRoomBySocket(socketId);
+        if (!room)
+            return undefined;
+        if (slotIndex < 0 || slotIndex >= room.slots.length)
+            return undefined;
+        const slot = room.slots[slotIndex];
+        if (slot.player !== null || slot.bot !== null)
+            return undefined;
+        const pending = room.pending.get(socketId);
+        let username;
+        let userId;
+        if (pending) {
+            username = pending.username;
+            userId = pending.userId;
+            room.pending.delete(socketId);
+        }
+        else {
+            const currentSlot = room.slots.find((s) => s.player?.socketId === socketId);
+            if (!currentSlot?.player)
+                return undefined;
+            username = currentSlot.player.username;
+            userId = currentSlot.player.userId;
+            currentSlot.player = null;
+        }
+        slot.player = { socketId, userId, username, isReady: false };
+        return room;
     }
     leave(socketId) {
         const room = this.getRoomBySocket(socketId);
         if (!room)
             return null;
-        room.players.delete(socketId);
-        if (room.players.size === 0) {
+        room.pending.delete(socketId);
+        const slot = room.slots.find((s) => s.player?.socketId === socketId);
+        if (slot)
+            slot.player = null;
+        const stillInRoom = room.pending.size > 0 || room.slots.some((s) => s.player !== null);
+        if (!stillInRoom) {
             this.rooms.delete(room.id);
             return { roomId: room.id };
         }
         let newHostId;
         if (room.hostId === socketId) {
-            const nextHost = room.players.values().next().value;
-            if (nextHost) {
-                nextHost.isHost = true;
-                room.hostId = nextHost.socketId;
-                newHostId = nextHost.socketId;
+            const next = room.slots.find((s) => s.player !== null)?.player?.socketId ?? room.pending.keys().next().value;
+            if (next) {
+                room.hostId = next;
+                newHostId = next;
             }
         }
         return { roomId: room.id, newHostId };
     }
     setReady(socketId, ready) {
         const room = this.getRoomBySocket(socketId);
-        const player = room?.players.get(socketId);
-        if (player)
-            player.isReady = ready;
+        const slot = room?.slots.find((s) => s.player?.socketId === socketId);
+        if (slot?.player)
+            slot.player.isReady = ready;
         return room;
     }
-    setBots(socketId, bots) {
+    addBot(socketId, slotIndex, difficulty) {
         const room = this.getRoomBySocket(socketId);
         if (!room || room.hostId !== socketId)
             return undefined;
-        room.bots = { ...room.bots, ...bots };
+        if (slotIndex < 0 || slotIndex >= room.slots.length)
+            return undefined;
+        const slot = room.slots[slotIndex];
+        if (slot.player !== null || slot.bot !== null)
+            return undefined;
+        slot.bot = { difficulty };
         return room;
     }
-    setTeam(socketId, team) {
+    removeBot(socketId, slotIndex) {
         const room = this.getRoomBySocket(socketId);
-        const player = room?.players.get(socketId);
-        if (!player)
+        if (!room || room.hostId !== socketId)
             return undefined;
-        const ctCount = Array.from(room.players.values()).filter((p) => p.team === 'ct').length;
-        const tCount = Array.from(room.players.values()).filter((p) => p.team === 't').length;
-        const maxPerTeam = Math.ceil(room.maxPlayers / 2);
-        const targetCount = team === 'ct' ? ctCount : tCount;
-        const otherCount = team === 'ct' ? tCount : ctCount;
-        if (player.team === team)
-            return room;
-        if (targetCount >= maxPerTeam && otherCount <= targetCount)
-            return room;
-        player.team = team;
+        if (slotIndex < 0 || slotIndex >= room.slots.length)
+            return undefined;
+        const slot = room.slots[slotIndex];
+        if (slot.bot === null)
+            return undefined;
+        slot.bot = null;
         return room;
     }
     toState(room) {
-        const players = Array.from(room.players.values());
+        const pending = Array.from(room.pending.entries()).map(([socketId, p]) => ({ socketId, username: p.username, userId: p.userId }));
         return {
             id: room.id,
             name: room.name,
             map: room.map,
             maxPlayers: room.maxPlayers,
             roundsToWin: room.roundsToWin,
-            bots: { ...room.bots },
-            players,
-            teams: {
-                ct: players.filter((p) => p.team === 'ct'),
-                t: players.filter((p) => p.team === 't'),
-            },
+            slots: room.slots.map((s) => ({ ...s, player: s.player ? { ...s.player } : null, bot: s.bot ? { ...s.bot } : null })),
+            pending,
             hostId: room.hostId,
             status: room.status,
         };
-    }
-    getTeamWithFewerPlayers(room) {
-        let ct = 0, t = 0;
-        for (const p of room.players.values()) {
-            if (p.team === 'ct')
-                ct++;
-            else
-                t++;
-        }
-        return ct <= t ? 'ct' : 't';
     }
 }
 exports.RoomStore = new RoomStoreClass();

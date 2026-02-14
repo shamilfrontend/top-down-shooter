@@ -84,14 +84,13 @@ class GameSession {
   private roundPhase: 'playing' | 'ended' = 'playing';
   private roundEndAt = 0;
 
-  private botsConfig: { enabled: boolean; difficulty: 'easy' | 'medium' | 'hard'; count: number };
+  private botDifficulties = new Map<string, 'easy' | 'medium' | 'hard'>();
 
-  constructor(io: Server, roomId: string, map: GameSession['map'], roundsToWin: number, botsConfig?: { enabled: boolean; difficulty: 'easy' | 'medium' | 'hard'; count: number }) {
+  constructor(io: Server, roomId: string, map: GameSession['map'], roundsToWin: number) {
     this.io = io;
     this.roomId = roomId;
     this.map = map;
     this.roundsToWin = roundsToWin;
-    this.botsConfig = botsConfig ?? { enabled: false, difficulty: 'medium', count: 0 };
   }
 
   start() {
@@ -99,59 +98,50 @@ class GameSession {
     if (!room) return;
 
     const spawns = { ct: [...this.map.spawnPoints.ct], t: [...this.map.spawnPoints.t] };
-    let ctIdx = 0;
-    let tIdx = 0;
+    const teamIndices = { ct: 0, t: 0 };
+    let botIndex = 0;
 
-    for (const lp of room.players.values()) {
-      const team = lp.team;
-      const points = team === 'ct' ? spawns.ct : spawns.t;
-      const idx = team === 'ct' ? ctIdx++ : tIdx++;
+    for (const slot of room.slots) {
+      const points = slot.team === 'ct' ? spawns.ct : spawns.t;
+      const idx = teamIndices[slot.team]++;
       const sp = points[idx % points.length] || { x: 100, y: 100 };
-
-      const pistol = START_WEAPONS[team];
+      const pistol = START_WEAPONS[slot.team];
       const pistolDef = WEAPONS[pistol];
-      this.players.set(lp.socketId, {
-        socketId: lp.socketId,
-        userId: lp.userId,
-        username: lp.username,
-        team,
-        x: sp.x + 30,
-        y: sp.y + 30,
-        angle: 0,
-        vx: 0,
-        vy: 0,
-        health: 100,
-        weapon: pistol,
-        ammo: pistolDef.magazineSize,
-        ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
-        isAlive: true,
-        kills: 0,
-        deaths: 0,
-        credits: CREDITS_START,
-        weapons: [null, pistol],
-        currentSlot: 1,
-        weaponAmmo: {},
-        lastInput: { up: false, down: false, left: false, right: false },
-        lastShotTime: 0,
-        reloadEndTime: 0,
-      });
-    }
 
-    if (this.botsConfig.enabled && this.botsConfig.count > 0) {
-      const botCount = Math.min(8, this.botsConfig.count);
-      for (let i = 0; i < botCount; i++) {
-        const team: 'ct' | 't' = i % 2 === 0 ? 'ct' : 't';
-        const points = team === 'ct' ? spawns.ct : spawns.t;
-        const idx = team === 'ct' ? ctIdx++ : tIdx++;
-        const sp = points[idx % points.length] || { x: 100, y: 100 };
-        const botId = `bot-${i}`;
-        const pistol = START_WEAPONS[team];
-        const pistolDef = WEAPONS[pistol];
+      if (slot.player) {
+        this.players.set(slot.player.socketId, {
+          socketId: slot.player.socketId,
+          userId: slot.player.userId,
+          username: slot.player.username,
+          team: slot.team,
+          x: sp.x + 30,
+          y: sp.y + 30,
+          angle: 0,
+          vx: 0,
+          vy: 0,
+          health: 100,
+          weapon: pistol,
+          ammo: pistolDef.magazineSize,
+          ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
+          isAlive: true,
+          kills: 0,
+          deaths: 0,
+          credits: CREDITS_START,
+          weapons: [null, pistol],
+          currentSlot: 1,
+          weaponAmmo: {},
+          lastInput: { up: false, down: false, left: false, right: false },
+          lastShotTime: 0,
+          reloadEndTime: 0,
+        });
+      } else if (slot.bot) {
+        const botId = `bot-${botIndex++}`;
+        this.botDifficulties.set(botId, slot.bot.difficulty);
         this.players.set(botId, {
           socketId: botId,
           userId: undefined,
-          username: getBotName(i),
-          team,
+          username: getBotName(botIndex - 1),
+          team: slot.team,
           x: sp.x + 30,
           y: sp.y + 30,
           angle: 0,
@@ -325,7 +315,13 @@ class GameSession {
           target.deaths++;
           p.kills++;
           p.credits += CREDITS_KILL;
-          this.io.to(this.roomId).emit('game:event', { type: 'kill', killer: p.socketId, victim: hit.hitId });
+          this.io.to(this.roomId).emit('game:event', {
+            type: 'kill',
+            killer: p.socketId,
+            victim: hit.hitId,
+            killerName: p.username,
+            victimName: target.username,
+          });
         }
       }
     }
@@ -416,7 +412,7 @@ class GameSession {
           p.angle,
           playersList,
           this.map,
-          this.botsConfig.difficulty,
+          this.botDifficulties.get(p.socketId) ?? 'medium',
           this.tickCount
         );
         p.lastInput = action.input;
@@ -544,7 +540,7 @@ export async function startGameSession(io: Server, roomId: string, mapId: string
     const data = await fs.readFile(filePath, 'utf-8');
     const map = JSON.parse(data);
 
-    const session = new GameSession(io, roomId, map, room.roundsToWin, room.bots);
+    const session = new GameSession(io, roomId, map, room.roundsToWin);
     sessions.set(roomId, session);
     session.start();
     return session;

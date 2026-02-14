@@ -129,6 +129,7 @@ export class GameEngine {
 
   private setupInput() {
     const keydown = (e: KeyboardEvent) => {
+      if (e.code === 'Tab' || e.code === 'Escape') return;
       const isRepeat = e.repeat;
       switch (e.code) {
         case 'KeyW':

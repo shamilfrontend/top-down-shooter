@@ -21,10 +21,18 @@ export interface RoomListItem {
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
 
-export interface BotsConfig {
-  enabled: boolean;
-  difficulty: BotDifficulty;
-  count: number;
+/** Один слот в комнате: либо игрок, либо бот, либо пусто */
+export interface RoomSlot {
+  team: TeamId;
+  player: { socketId: string; userId?: string; username: string; isReady: boolean } | null;
+  bot: { difficulty: BotDifficulty } | null;
+}
+
+/** Игрок в очереди (зашёл в комнату, ещё не выбрал слот) */
+export interface PendingPlayer {
+  socketId: string;
+  userId?: string;
+  username: string;
 }
 
 export interface RoomState {
@@ -33,9 +41,8 @@ export interface RoomState {
   map: string;
   maxPlayers: number;
   roundsToWin: number;
-  bots: BotsConfig;
-  players: LobbyPlayer[];
-  teams: { ct: LobbyPlayer[]; t: LobbyPlayer[] };
+  slots: RoomSlot[];
+  pending: PendingPlayer[];
   hostId: string;
   status: 'waiting' | 'playing';
 }

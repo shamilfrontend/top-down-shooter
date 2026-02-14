@@ -17,6 +17,7 @@ interface PlayerLike {
 
 interface MapLike {
   walls: Wall[];
+  spawnPoints?: { ct: { x: number; y: number }[]; t: { x: number; y: number }[] };
 }
 
 function hasLineOfSight(
@@ -81,7 +82,8 @@ export function computeBotAction(
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
   const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
   const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
-  const moveFreq = difficulty === 'easy' ? 0.2 : difficulty === 'medium' ? 0.5 : 0.8;
+  const moveTowardsTargetFreq = difficulty === 'easy' ? 0.6 : difficulty === 'medium' ? 0.85 : 0.95;
+  const huntFreq = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.7 : 0.9;
 
   let target: PlayerLike | null = null;
   let minDist = Infinity;
@@ -90,6 +92,31 @@ export function computeBotAction(
     if (d < minDist && hasLineOfSight(botX, botY, e.x, e.y, map.walls)) {
       minDist = d;
       target = e;
+    }
+  }
+
+  let huntTargetX: number;
+  let huntTargetY: number;
+  let hasHuntTarget = false;
+  if (enemies.length > 0) {
+    let nearest = enemies[0];
+    let nearestD = Math.hypot(nearest.x - botX, nearest.y - botY);
+    for (const e of enemies) {
+      const d = Math.hypot(e.x - botX, e.y - botY);
+      if (d < nearestD) {
+        nearestD = d;
+        nearest = e;
+      }
+    }
+    huntTargetX = nearest.x;
+    huntTargetY = nearest.y;
+    hasHuntTarget = true;
+  } else if (map.spawnPoints) {
+    const enemySpawns = botTeam === 'ct' ? map.spawnPoints.t : map.spawnPoints.ct;
+    if (enemySpawns.length > 0) {
+      huntTargetX = enemySpawns.reduce((s, p) => s + p.x, 0) / enemySpawns.length;
+      huntTargetY = enemySpawns.reduce((s, p) => s + p.y, 0) / enemySpawns.length;
+      hasHuntTarget = true;
     }
   }
 
@@ -105,15 +132,15 @@ export function computeBotAction(
     const diff = Math.abs(angleDiff(botAngle, angle));
     if (diff < 0.15) shoot = true;
 
-    if (minDist > 250 && Math.random() < moveFreq) {
+    if (minDist > 250 && Math.random() < moveTowardsTargetFreq) {
       const moveAngle = toTarget;
       const mx = Math.cos(moveAngle);
       const my = Math.sin(moveAngle);
-      if (mx > 0.3) input.right = true;
-      else if (mx < -0.3) input.left = true;
-      if (my > 0.3) input.down = true;
-      else if (my < -0.3) input.up = true;
-    } else if (minDist < 150 && Math.random() < 0.5) {
+      if (mx > 0.2) input.right = true;
+      else if (mx < -0.2) input.left = true;
+      if (my > 0.2) input.down = true;
+      else if (my < -0.2) input.up = true;
+    } else if (minDist < 120 && Math.random() < 0.5) {
       const away = Math.atan2(botY - target.y, botX - target.x);
       const mx = Math.cos(away);
       const my = Math.sin(away);
@@ -122,7 +149,21 @@ export function computeBotAction(
       if (my > 0.3) input.down = true;
       else if (my < -0.3) input.up = true;
     }
-  } else if (tick % 60 < 30 && Math.random() < 0.1) {
+  } else if (hasHuntTarget && Math.random() < huntFreq) {
+    const dx = huntTargetX - botX;
+    const dy = huntTargetY - botY;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 80) {
+      const moveAngle = Math.atan2(dy, dx);
+      const mx = Math.cos(moveAngle);
+      const my = Math.sin(moveAngle);
+      if (mx > 0.25) input.right = true;
+      else if (mx < -0.25) input.left = true;
+      if (my > 0.25) input.down = true;
+      else if (my < -0.25) input.up = true;
+      angle = moveAngle;
+    }
+  } else if (tick % 40 < 20 && Math.random() < 0.15) {
     const dir = Math.floor(Math.random() * 4);
     if (dir === 0) input.up = true;
     else if (dir === 1) input.down = true;

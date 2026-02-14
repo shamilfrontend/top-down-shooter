@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { BotsConfig, RoomState, RoomListItem } from 'top-down-cs-shared';
+import type { RoomState, RoomListItem } from 'top-down-cs-shared';
 import { useSocket } from '@/composables/useSocket';
 
 export const useRoomStore = defineStore('room', () => {
@@ -17,7 +17,7 @@ export const useRoomStore = defineStore('room', () => {
     s.emit('room:list');
   }
 
-  function createRoom(options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number }) {
+  function createRoom(options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; team?: 'ct' | 't' }) {
     error.value = null;
     const s = connect();
     s.emit('room:create', options);
@@ -39,12 +39,16 @@ export const useRoomStore = defineStore('room', () => {
     socket.value?.emit('room:ready', ready);
   }
 
-  function changeTeam(team: 'ct' | 't') {
-    socket.value?.emit('room:changeTeam', team);
+  function takeSlot(slotIndex: number) {
+    socket.value?.emit('room:takeSlot', slotIndex);
   }
 
-  function changeBots(bots: Partial<BotsConfig>) {
-    socket.value?.emit('room:changeBots', bots);
+  function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
+    socket.value?.emit('room:addBot', { slotIndex, difficulty });
+  }
+
+  function removeBot(slotIndex: number) {
+    socket.value?.emit('room:removeBot', { slotIndex });
   }
 
   function startGame() {
@@ -110,8 +114,9 @@ export const useRoomStore = defineStore('room', () => {
     joinRoom,
     leaveRoom,
     setReady,
-    changeTeam,
-    changeBots,
+    takeSlot,
+    addBot,
+    removeBot,
     startGame,
     setupListeners,
     clearError,

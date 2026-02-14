@@ -2,13 +2,14 @@
 import { ref } from 'vue';
 
 const emit = defineEmits<{
-  submit: [options: { name: string; password?: string; map: string; maxPlayers: number; roundsToWin: number }];
+  submit: [options: { name: string; password?: string; map: string; maxPlayers: number; roundsToWin: number; team: 'ct' | 't' }];
   cancel: [];
 }>();
 
 const name = ref('');
 const password = ref('');
 const map = ref('dust2');
+const team = ref<'ct' | 't'>('ct');
 const maxPlayers = ref(10);
 const roundsToWin = ref(10);
 
@@ -23,6 +24,7 @@ function handleSubmit() {
     name: name.value.trim(),
     password: password.value.trim() || undefined,
     map: map.value,
+    team: team.value,
     maxPlayers: maxPlayers.value,
     roundsToWin: roundsToWin.value,
   });
@@ -49,6 +51,19 @@ function handleSubmit() {
         {{ m.label }}
       </option>
     </select>
+    <div class="form-row form-row-team">
+      <label>Команда:</label>
+      <div class="team-choices">
+        <label class="team-choice" :class="{ active: team === 'ct' }">
+          <input v-model="team" type="radio" value="ct" />
+          <span>Спецназ</span>
+        </label>
+        <label class="team-choice" :class="{ active: team === 't' }">
+          <input v-model="team" type="radio" value="t" />
+          <span>Террористы</span>
+        </label>
+      </div>
+    </div>
     <div class="form-row">
       <label>Макс. игроков:</label>
       <input v-model.number="maxPlayers" type="number" min="2" max="20" class="input-cs form-input-sm" />
@@ -88,6 +103,29 @@ function handleSubmit() {
 .form-input-sm {
   width: 80px;
 }
+.form-row-team .team-choices {
+  display: flex;
+  gap: 12px;
+}
+.team-choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--cs-panel-border);
+  cursor: pointer;
+  font-size: 13px;
+}
+.team-choice input {
+  display: none;
+}
+.team-choice.active {
+  border-color: var(--cs-orange);
+  background: rgba(232, 146, 46, 0.1);
+  color: var(--cs-orange);
+}
+.team-choice:first-child.active { color: #6b9bd1; border-color: #6b9bd1; background: rgba(107, 155, 209, 0.1); }
+.team-choice:last-child.active { color: #d4a574; border-color: #d4a574; background: rgba(212, 165, 116, 0.1); }
 .form-actions {
   display: flex;
   gap: 8px;

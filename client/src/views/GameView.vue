@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMaps } from '@/composables/useMaps';
 import { useGameAudio } from '@/composables/useGameAudio';
 import { useFullscreen } from '@/composables/useFullscreen';
 import { GameEngine } from '@/game/GameEngine';
+import type { ServerPlayer } from '@/game/GameEngine';
 import { LocalGameSession } from '@/game/LocalGameSession';
 import GameHUD from '@/components/GameHUD.vue';
 import ShopModal from '@/components/ShopModal.vue';
@@ -36,8 +37,24 @@ const hudState = ref({
 
 const shopOpen = ref(false);
 
+const scoreboardOpen = ref(false);
+const scoreboardPlayers = ref<ServerPlayer[]>([]);
+const sortedScoreboardPlayers = computed(() => {
+  const list = [...scoreboardPlayers.value];
+  return list.sort((a, b) => (a.team !== b.team ? (a.team === 'ct' ? -1 : 1) : b.kills - a.kills));
+});
+
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
+
+function onScoreboardKey(e: KeyboardEvent) {
+  if (e.code === 'Tab') {
+    e.preventDefault();
+    scoreboardOpen.value = !scoreboardOpen.value;
+  } else if (e.code === 'Escape') {
+    scoreboardOpen.value = false;
+  }
+}
 
 async function init() {
   const mapId = (route.params.mapId as string) || 'dust2';
@@ -72,6 +89,7 @@ async function init() {
     });
 
     localSession.setOnState((state) => {
+      scoreboardPlayers.value = state.players;
       engine?.setServerState(
         state.players,
         state.pickups,
@@ -105,9 +123,13 @@ function exitGame() {
   router.push({ name: 'home' });
 }
 
-onMounted(init);
+onMounted(() => {
+  init();
+  window.addEventListener('keydown', onScoreboardKey);
+});
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onScoreboardKey);
   localSession?.stop();
   localSession = null;
   engine?.stop();
@@ -141,6 +163,39 @@ watch(() => route.params.mapId, () => {
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
       <canvas ref="canvasRef" class="game-canvas" />
+      <div v-if="scoreboardOpen" class="scoreboard-overlay">
+        <div class="scoreboard panel-cs">
+          <div class="scoreboard-header">
+            <span class="scoreboard-score">
+              <span class="team-ct">{{ hudState.scoreCt }}</span>
+              <span class="scoreboard-sep">:</span>
+              <span class="team-t">{{ hudState.scoreT }}</span>
+            </span>
+            <span class="scoreboard-round">Раунд {{ hudState.round }}</span>
+            <span class="scoreboard-time">
+              {{ Math.floor((hudState.roundTimeLeft ?? 0) / 60) }}:{{ String((hudState.roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
+            </span>
+          </div>
+          <div class="scoreboard-table">
+            <div class="scoreboard-row scoreboard-head">
+              <span>Игрок</span>
+              <span>K</span>
+              <span>D</span>
+            </div>
+            <div
+              v-for="p in sortedScoreboardPlayers"
+              :key="p.id"
+              class="scoreboard-row"
+              :class="p.team"
+            >
+              <span class="scoreboard-name">{{ p.username }}</span>
+              <span>{{ p.kills }}</span>
+              <span>{{ p.deaths }}</span>
+            </div>
+          </div>
+          <p class="scoreboard-hint">TAB или ESC — закрыть</p>
+        </div>
+      </div>
       <GameHUD v-bind="hudState" />
       <ShopModal
         :show="shopOpen"
@@ -205,6 +260,73 @@ watch(() => route.params.mapId, () => {
 .hint {
   font-size: 0.85rem;
   color: #888;
+}
+.scoreboard-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: auto;
+}
+.scoreboard {
+  padding: 20px 28px;
+  border: 1px solid var(--cs-panel-border);
+  min-width: 320px;
+  max-width: 90%;
+  font-family: Tahoma, Arial, sans-serif;
+}
+.scoreboard-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cs-panel-border);
+}
+.scoreboard-score {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.scoreboard-score .team-ct { color: #6b9bd1; }
+.scoreboard-score .team-t { color: #d4a574; }
+.scoreboard-sep { margin: 0 4px; color: var(--cs-text-dim); }
+.scoreboard-round,
+.scoreboard-time {
+  font-size: 13px;
+  color: var(--cs-text-dim);
+}
+.scoreboard-time {
+  color: var(--cs-orange);
+  font-weight: 600;
+}
+.scoreboard-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scoreboard-row {
+  display: grid;
+  grid-template-columns: 1fr 40px 40px;
+  gap: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.scoreboard-row.scoreboard-head {
+  color: var(--cs-text-dim);
+  font-size: 12px;
+  border-bottom: 1px solid var(--cs-panel-border);
+  margin-bottom: 4px;
+}
+.scoreboard-row.ct .scoreboard-name { color: #6b9bd1; }
+.scoreboard-row.t .scoreboard-name { color: #d4a574; }
+.scoreboard-hint {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--cs-text-dim);
+  text-align: center;
 }
 .game-canvas-wrap {
   flex: 1;

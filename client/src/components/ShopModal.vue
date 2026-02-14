@@ -19,9 +19,9 @@ const items = [
 <template>
   <Teleport to="body">
     <div v-if="show" class="shop-overlay" @click.self="emit('close')">
-      <div class="shop-modal">
+      <div class="shop-modal panel-cs">
         <div class="shop-header">
-          <h3>Магазин</h3>
+          <h3 class="shop-title">МАГАЗИН</h3>
           <span class="credits">${{ credits }}</span>
         </div>
         <div class="shop-items">
@@ -34,7 +34,8 @@ const items = [
             <div class="item-name">{{ item.name }}</div>
             <div class="item-price">${{ item.price }}</div>
             <button
-              class="btn-buy"
+              type="button"
+              class="btn-cs btn-cs-primary btn-buy"
               :disabled="credits < item.price || !!weapons[0]"
               @click="emit('buy', item.id)"
             >
@@ -52,7 +53,7 @@ const items = [
 .shop-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,68 +61,64 @@ const items = [
   pointer-events: auto;
 }
 .shop-modal {
-  background: #1e1e32;
-  border: 1px solid #444;
-  border-radius: 12px;
-  padding: 1.5rem 2rem;
+  padding: 24px 28px;
+  border: 1px solid var(--cs-panel-border);
   min-width: 280px;
+  font-family: Tahoma, Arial, sans-serif;
 }
 .shop-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.25rem;
+  margin-bottom: 20px;
 }
-.shop-header h3 {
+.shop-title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: var(--cs-orange);
 }
 .credits {
   font-weight: 700;
-  color: #4ade80;
-  font-size: 1.1rem;
+  color: var(--cs-orange);
+  font-size: 14px;
 }
 .shop-items {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 8px;
 }
 .shop-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: #252540;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--cs-panel-border);
 }
 .shop-item.disabled {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 .item-name {
   flex: 1;
   font-weight: 600;
+  font-size: 13px;
 }
 .item-price {
-  color: #888;
+  color: var(--cs-text-dim);
+  font-size: 13px;
 }
 .btn-buy {
-  padding: 0.5rem 1rem;
-  background: #3b82f6;
-  border: none;
-  border-radius: 6px;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
+  font-size: 12px;
 }
 .btn-buy:disabled {
-  background: #333;
-  color: #666;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 .shop-hint {
-  margin: 1rem 0 0;
-  font-size: 0.8rem;
-  color: #666;
+  margin: 16px 0 0;
+  font-size: 11px;
+  color: var(--cs-text-dim);
   text-align: center;
 }
 </style>
