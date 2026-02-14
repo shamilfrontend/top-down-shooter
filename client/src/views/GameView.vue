@@ -11,22 +11,33 @@ import GameHUD from '@/components/GameHUD.vue';
 import ShopModal from '@/components/ShopModal.vue';
 
 const BOT_DIFFICULTY_KEY = 'trainingBotDifficulty';
+const BOT_COUNT_KEY = 'trainingBotCount';
 const TRAINING_MAP_KEY = 'trainingMapId';
+const BOT_COUNT_MIN = 0;
+const BOT_COUNT_MAX = 20;
 
 function loadBotDifficulty(): BotDifficulty {
   const saved = localStorage.getItem(BOT_DIFFICULTY_KEY);
   return saved === 'easy' || saved === 'medium' || saved === 'hard' ? saved : 'medium';
 }
 
+function loadBotCount(): number {
+  const saved = localStorage.getItem(BOT_COUNT_KEY);
+  const n = saved != null ? parseInt(saved, 10) : 10;
+  return Number.isFinite(n) ? Math.max(BOT_COUNT_MIN, Math.min(BOT_COUNT_MAX, n)) : 10;
+}
+
 const route = useRoute();
 const router = useRouter();
 
 const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
+const botCount = ref<number>(loadBotCount());
 const selectedMapId = ref<string>((route.params.mapId as string) || localStorage.getItem(TRAINING_MAP_KEY) || 'dust2');
 const { fetchMap, fetchMapsList, mapsList } = useMaps();
 const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+const mapLoadError = ref<string | null>(null);
 let engine: GameEngine | null = null;
 let localSession: LocalGameSession | null = null;
 
@@ -69,7 +80,10 @@ const canvasWrapRef = ref<HTMLDivElement | null>(null);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
 function applySettings() {
+  const count = Math.max(BOT_COUNT_MIN, Math.min(BOT_COUNT_MAX, botCount.value));
+  botCount.value = count;
   localStorage.setItem(BOT_DIFFICULTY_KEY, botDifficulty.value);
+  localStorage.setItem(BOT_COUNT_KEY, String(count));
   localStorage.setItem(TRAINING_MAP_KEY, selectedMapId.value);
   engine?.stop();
   localSession?.stop();
@@ -92,11 +106,12 @@ async function init() {
   const canvas = canvasRef.value;
   if (!canvas) return;
 
+  mapLoadError.value = null;
   try {
     const map = await fetchMap(mapId);
     localSession = new LocalGameSession(map, {
       ctBotCount: 0,
-      tBotCount: 10,
+      tBotCount: Math.max(0, Math.min(BOT_COUNT_MAX, botCount.value)),
       botDifficulty: botDifficulty.value,
     });
     engine = new GameEngine({
@@ -154,6 +169,7 @@ async function init() {
     engine.start();
   } catch (e) {
     console.error('Failed to load map:', e);
+    mapLoadError.value = 'Не удалось загрузить карту. Запустите сервер (npm run dev в папке server).';
   }
 }
 
@@ -205,7 +221,15 @@ watch(
     <div class="game-header">
       <h2>Тренировка</h2>
       <div class="bot-difficulty-row">
-        <span class="bot-difficulty-label">Уровень ботов:</span>
+        <span class="bot-difficulty-label">Количество ботов:</span>
+        <input
+          v-model.number="botCount"
+          type="number"
+          :min="BOT_COUNT_MIN"
+          :max="BOT_COUNT_MAX"
+          class="input-bot-count"
+        />
+        <span class="bot-difficulty-label map-sep">Уровень ботов:</span>
         <label class="bot-difficulty-opt">
           <input v-model="botDifficulty" type="radio" value="easy" />
           <span>Лёгкий</span>
@@ -238,6 +262,7 @@ watch(
       </div>
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
+      <div v-if="mapLoadError" class="map-load-error">{{ mapLoadError }}</div>
       <canvas ref="canvasRef" class="game-canvas" />
       <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
         <div
@@ -363,6 +388,17 @@ watch(
   color: #ccc;
 }
 .bot-difficulty-opt input { accent-color: var(--cs-orange); }
+.input-bot-count {
+  width: 3rem;
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.9rem;
+  text-align: center;
+  background: var(--cs-bg-secondary);
+  border: 1px solid var(--cs-panel);
+  color: var(--cs-text);
+  border-radius: 4px;
+}
 .map-sep {
   margin-left: 1rem;
 }
@@ -483,6 +519,20 @@ watch(
   position: relative;
   min-height: 400px;
 }
+
+.map-load-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: #e0e0e0;
+  padding: 1rem;
+  text-align: center;
+  z-index: 2;
+}
+
 .game-canvas {
   position: absolute;
   inset: 0;

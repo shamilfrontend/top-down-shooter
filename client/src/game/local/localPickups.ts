@@ -86,7 +86,8 @@ export function processPickups(
   players: Array<{ id: string; x: number; y: number; health: number; armor?: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
   getMagazineSize: (weaponId: string) => number,
   now: number,
-  onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void
+  onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void,
+  getMaxReserve?: (weaponId: string) => number
 ): void {
   for (const p of pickups) {
     if (p.respawnAt > now) continue;
@@ -100,6 +101,8 @@ export function processPickups(
       if (p.type === 'ammo') {
         const magSize = getMagazineSize(pl.weapon) ?? 30;
         pl.ammoReserve += magSize * AMMO_MAGAZINES;
+        const maxR = getMaxReserve?.(pl.weapon);
+        if (maxR != null) pl.ammoReserve = Math.min(pl.ammoReserve, maxR);
         if (pl.weaponAmmo?.[pl.weapon]) pl.weaponAmmo[pl.weapon].reserve = pl.ammoReserve;
         p.respawnAt = now + AMMO_RESPAWN_MS;
       } else if (p.type === 'medkit') {

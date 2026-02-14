@@ -11,8 +11,8 @@ const emit = defineEmits<{
 }>();
 
 const items = [
-  { id: 'ak47', name: 'AK-47', price: 2700, slot: 0 },
-  { id: 'm4', name: 'M4A1', price: 3100, slot: 0 },
+  { id: 'm4', name: 'M4A1', price: 3500, slot: 0 },
+  { id: 'ak47', name: 'AK-47', price: 5000, slot: 0 },
 ];
 </script>
 

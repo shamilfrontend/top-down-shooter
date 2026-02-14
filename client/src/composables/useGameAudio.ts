@@ -16,6 +16,8 @@ export function useGameAudio() {
   const addAmmo = createAudio('/audio/add-ammunition.mp3');
   const addHp = createAudio('/audio/add-hp.mp3');
   const go = createAudio('/audio/go.mp3');
+  const go2 = createAudio('/audio/go2.mp3');
+  let goRoundIndex = 0;
 
   function playShot(weapon: string) {
     if (PISTOLS.includes(weapon)) {
@@ -53,8 +55,11 @@ export function useGameAudio() {
   }
 
   function playGo() {
-    go.currentTime = 0;
-    go.play().catch(() => {});
+    const isEven = goRoundIndex % 2 === 0;
+    goRoundIndex++;
+    const audio = isEven ? go : go2;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
   }
 
   return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo };

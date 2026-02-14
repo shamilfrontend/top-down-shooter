@@ -353,13 +353,14 @@ export class LocalGameSession {
     p.weapon = w ?? p.weapons[1];
     const def = WEAPONS[p.weapon];
     if (!def) return;
+    const maxReserve = def.maxReserve ?? 120;
     const saved = p.weaponAmmo[p.weapon];
     if (saved) {
       p.ammo = saved.ammo;
-      p.ammoReserve = saved.reserve;
+      p.ammoReserve = Math.min(saved.reserve, maxReserve);
     } else {
       p.ammo = def.magazineSize;
-      p.ammoReserve = p.weapon === 'usp' ? 24 : 90;
+      p.ammoReserve = Math.min(p.weapon === 'usp' ? 24 : 90, maxReserve);
     }
   }
 
@@ -469,7 +470,8 @@ export class LocalGameSession {
       Array.from(this.players.values()),
       (w) => WEAPONS[w]?.magazineSize ?? 30,
       now,
-      this.onPickup
+      this.onPickup,
+      (w) => WEAPONS[w]?.maxReserve
     );
 
     const relocateInterval = Math.floor(now / PICKUP_RELOCATE_MS);
