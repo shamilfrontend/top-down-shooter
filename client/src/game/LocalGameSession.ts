@@ -32,6 +32,7 @@ export interface LocalPlayer {
   vx: number;
   vy: number;
   health: number;
+  armor: number;
   weapon: string;
   ammo: number;
   ammoReserve: number;
@@ -56,6 +57,7 @@ export interface LocalGameState {
     team: 'ct' | 't';
     username: string;
     health: number;
+    armor: number;
     weapon: string;
     ammo: number;
     ammoReserve: number;
@@ -90,7 +92,8 @@ export class LocalGameSession {
   private onShotTrail?: (x1: number, y1: number, x2: number, y2: number) => void;
   private onShot?: (weapon: string) => void;
   private onRoundEnd?: (winner: 'ct' | 't') => void;
-  private onPickup?: (type: 'ammo' | 'medkit') => void;
+  private onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void;
+  private onKill?: (killerName: string, victimName: string) => void;
 
   constructor(map: MapConfig, options?: LocalGameSessionOptions) {
     this.map = map;
@@ -116,6 +119,7 @@ export class LocalGameSession {
       vx: 0,
       vy: 0,
       health: 100,
+      armor: 0,
       weapon: pistol,
       ammo: pistolDef.magazineSize,
       ammoReserve: 24,
@@ -151,6 +155,7 @@ export class LocalGameSession {
         vx: 0,
         vy: 0,
         health: 100,
+        armor: 0,
         weapon: pistol,
         ammo: pDef.magazineSize,
         ammoReserve: 24,
@@ -183,6 +188,7 @@ export class LocalGameSession {
         vx: 0,
         vy: 0,
         health: 100,
+        armor: 0,
         weapon: pistol,
         ammo: pDef.magazineSize,
         ammoReserve: 24,
@@ -199,7 +205,7 @@ export class LocalGameSession {
       });
     }
 
-    this.pickups = createPickups(this.map, { ammo: 5, medkit: 3 });
+    this.pickups = createPickups(this.map, { ammo: 3, medkit: 3, armor: 3 });
     this.roundStartTime = Date.now();
     this.lastPickupRelocateInterval = Math.floor(Date.now() / PICKUP_RELOCATE_MS);
     this.tickInterval = setInterval(() => this.tick(), TICK_MS);
@@ -221,8 +227,12 @@ export class LocalGameSession {
     this.onRoundEnd = cb;
   }
 
-  setOnPickup(cb: (type: 'ammo' | 'medkit') => void) {
+  setOnPickup(cb: (type: 'ammo' | 'medkit' | 'armor') => void) {
     this.onPickup = cb;
+  }
+
+  setOnKill(cb: (killerName: string, victimName: string) => void) {
+    this.onKill = cb;
   }
 
   setInput(id: string, input: InputState) {
@@ -272,12 +282,18 @@ export class LocalGameSession {
     if (hit) {
       const target = this.players.get(hit.hitId);
       if (target && target.team !== p.team) {
-        target.health = Math.max(0, target.health - def.damage);
+        const armor = target.armor ?? 0;
+        const reduction = 1 - armor * 0.004;
+        const damage = Math.max(1, Math.floor(def.damage * Math.max(0.4, reduction)));
+        const armorDamage = Math.floor(damage * 0.5);
+        target.health = Math.max(0, target.health - damage);
+        target.armor = Math.max(0, (target.armor ?? 0) - armorDamage);
         if (target.health <= 0) {
           target.isAlive = false;
           target.deaths++;
           p.kills++;
           p.credits += CREDITS_KILL;
+          this.onKill?.(p.username, target.username);
         }
       }
     }
@@ -354,6 +370,7 @@ export class LocalGameSession {
       p.vx = 0;
       p.vy = 0;
       p.health = 100;
+      p.armor = 0;
       p.isAlive = true;
       p.reloadEndTime = 0;
       this.applyWeaponSlot(p);
@@ -472,6 +489,7 @@ export class LocalGameSession {
         team: p.team,
         username: p.username,
         health: p.health,
+        armor: p.armor,
         weapon: p.weapon,
         ammo: p.ammo,
         ammoReserve: p.ammoReserve,

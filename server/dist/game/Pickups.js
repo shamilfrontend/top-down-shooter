@@ -8,10 +8,13 @@ exports.getActivePickups = getActivePickups;
 const PICKUP_RADIUS = 25;
 const AMMO_RESPAWN_MS = 30000;
 const MEDKIT_RESPAWN_MS = 45000;
+const ARMOR_RESPAWN_MS = 40000;
 /** Каждые 15 с невзятые пикапы переносятся в новые позиции */
 exports.PICKUP_RELOCATE_MS = 15000;
 const AMMO_MAGAZINES = 1;
 const MEDKIT_HP = 20;
+const ARMOR_AMOUNT = 10;
+const ARMOR_MAX = 100;
 function isInWall(x, y, walls, padding = 40) {
     for (const w of walls) {
         const expX = w.x - padding;
@@ -53,6 +56,8 @@ function createPickups(map, count) {
         add('ammo');
     for (let i = 0; i < (count.medkit ?? 3); i++)
         add('medkit');
+    for (let i = 0; i < (count.armor ?? 3); i++)
+        add('armor');
     return items;
 }
 /** Переносит все активные (невзятые) пикапы в новые случайные позиции. Вызывать при смене 15-сек интервала. */
@@ -82,11 +87,17 @@ function processPickups(pickups, players, getMagazineSize, now) {
                 pl.ammoReserve += magSize * AMMO_MAGAZINES;
                 if (pl.weaponAmmo?.[pl.weapon])
                     pl.weaponAmmo[pl.weapon].reserve = pl.ammoReserve;
+                p.respawnAt = now + AMMO_RESPAWN_MS;
             }
             else if (p.type === 'medkit') {
                 pl.health = Math.min(100, pl.health + MEDKIT_HP);
+                p.respawnAt = now + MEDKIT_RESPAWN_MS;
             }
-            p.respawnAt = now + (p.type === 'ammo' ? AMMO_RESPAWN_MS : MEDKIT_RESPAWN_MS);
+            else if (p.type === 'armor') {
+                const cur = pl.armor ?? 0;
+                pl.armor = Math.min(ARMOR_MAX, cur + ARMOR_AMOUNT);
+                p.respawnAt = now + ARMOR_RESPAWN_MS;
+            }
             taken.push({ playerId: pl.socketId, type: p.type });
             break;
         }

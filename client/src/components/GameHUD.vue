@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
   health: number;
+  armor?: number;
   weapon: string;
   ammo: number;
   ammoReserve: number;
@@ -64,10 +65,6 @@ function isSelected(key: number): boolean {
 
     <div class="hud-bottom">
       <div class="hud-left">
-        <div class="hp-bar">
-          <div class="hp-fill" :style="{ width: `${health}%` }" />
-          <span class="hp-text">{{ health }} HP</span>
-        </div>
         <div class="weapon-slots">
           <div
             v-for="slot in slots"
@@ -96,9 +93,32 @@ function isSelected(key: number): boolean {
         </div>
       </div>
       <div class="hud-right">
-        <div class="stats">
-          <span class="stat">K: {{ kills }}</span>
-          <span class="stat">D: {{ deaths }}</span>
+        <div class="hp-armor-row">
+          <div class="hp-armor-item">
+            <span class="hp-armor-label">HP</span>
+            <div class="hp-bar-cs">
+              <div
+                class="hp-fill-cs"
+                :class="health > 66 ? 'high' : health > 33 ? 'mid' : 'low'"
+                :style="{ width: `${health}%` }"
+              />
+              <span class="hp-armor-num">{{ health }}</span>
+            </div>
+          </div>
+          <div class="hp-armor-item">
+            <span class="hp-armor-label">AP</span>
+            <div class="armor-bar-cs">
+              <div
+                class="armor-fill-cs"
+                :style="{ width: `${Math.min(100, armor ?? 0)}%` }"
+              />
+              <span class="hp-armor-num">{{ armor ?? 0 }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="stats-cs">
+          <span class="stat-cs">K: {{ kills }}</span>
+          <span class="stat-cs">D: {{ deaths }}</span>
         </div>
       </div>
     </div>
@@ -116,12 +136,13 @@ function isSelected(key: number): boolean {
   font-family: Tahoma, Arial, sans-serif;
 }
 .hud-top {
-  padding: 12px 20px;
+  padding: 10px 20px;
 }
 .score {
-  font-size: 1.5rem;
+  font-size: 1.55rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  text-shadow: 1px 1px 0 #000;
 }
 .team-ct {
   color: #6b9bd1;
@@ -135,64 +156,43 @@ function isSelected(key: number): boolean {
 }
 .credits-bar {
   margin-top: 4px;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--cs-orange);
+  text-shadow: 1px 1px 0 #000;
 }
 .round-info {
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 12px;
   color: var(--cs-text-dim);
 }
 .round-timer {
-  margin-left: 12px;
-  font-weight: 600;
+  margin-left: 10px;
+  font-weight: 700;
   color: var(--cs-orange);
 }
 .hud-bottom {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 12px 20px;
+  padding: 14px 24px;
 }
 .hud-left {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.hp-bar {
-  width: 200px;
-  height: 22px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid var(--cs-panel-border);
-  overflow: hidden;
-  position: relative;
-}
-.hp-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #c0392b, #27ae60);
-  transition: width 0.2s;
-}
-.hp-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  text-shadow: 0 1px 2px #000;
-  color: #fff;
-}
 .weapon-slots {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .weapon-slot {
-  width: 42px;
-  height: 34px;
-  background: rgba(0, 0, 0, 0.7);
-  border: 1px solid var(--cs-panel-border);
+  width: 46px;
+  height: 36px;
+  background: #0a0a0a;
+  border: 1px solid var(--cs-bevel-dark);
+  border-top-color: var(--cs-bevel-light);
+  border-left-color: var(--cs-bevel-light);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -201,7 +201,7 @@ function isSelected(key: number): boolean {
 }
 .weapon-slot.selected {
   border-color: var(--cs-orange);
-  background: rgba(232, 146, 46, 0.15);
+  background: rgba(200, 120, 30, 0.2);
 }
 .weapon-slot.empty {
   opacity: 0.5;
@@ -229,25 +229,83 @@ function isSelected(key: number): boolean {
 .weapon-info {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 .weapon-name {
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 14px;
   display: flex;
   align-items: center;
   gap: 4px;
   color: var(--cs-text);
+  text-shadow: 1px 1px 0 #000;
 }
 .ammo {
-  font-size: 12px;
-  color: var(--cs-text-dim);
+  font-size: 13px;
+  color: var(--cs-orange);
+  font-weight: 600;
 }
-.hud-right .stats {
+/* CS 1.6 style — HP/AP в правом нижнем углу */
+.hud-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.hp-armor-row {
+  display: flex;
+  gap: 14px;
+}
+.hp-armor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hp-armor-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cs-text-dim);
+  width: 24px;
+}
+.hp-bar-cs,
+.armor-bar-cs {
+  width: 100px;
+  height: 22px;
+  background: #0a0a0a;
+  border: 1px solid var(--cs-bevel-dark);
+  border-top-color: var(--cs-bevel-light);
+  border-left-color: var(--cs-bevel-light);
+  overflow: hidden;
+  position: relative;
+}
+.hp-fill-cs {
+  height: 100%;
+  transition: width 0.15s;
+}
+.hp-fill-cs.high { background: #4a9b3c; }
+.hp-fill-cs.mid { background: #c4a420; }
+.hp-fill-cs.low { background: #b03030; }
+.armor-fill-cs {
+  height: 100%;
+  background: #4a6a8a;
+  transition: width 0.15s;
+}
+.hp-armor-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+.stats-cs {
   display: flex;
   gap: 12px;
   font-size: 13px;
-}
-.stat {
   color: var(--cs-text-dim);
 }
+.stat-cs { font-weight: 600; }
 </style>

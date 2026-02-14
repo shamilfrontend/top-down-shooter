@@ -46,6 +46,16 @@ const hudState = ref({
 
 const shopOpen = ref(false);
 
+interface KillFeedEntry {
+  killerName: string;
+  victimName: string;
+  time: number;
+}
+const killFeed = ref<KillFeedEntry[]>([]);
+const KILL_FEED_DURATION_MS = 5000;
+const KILL_FEED_MAX = 6;
+const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
+
 const scoreboardOpen = ref(false);
 const scoreboardPlayers = ref<ServerPlayer[]>([]);
 const sortedScoreboardPlayers = computed(() => {
@@ -129,7 +139,10 @@ async function init() {
     });
     localSession.setOnPickup((type) => {
       if (type === 'ammo') playPickupAmmo();
-      else playPickupMedkit();
+      else if (type === 'medkit' || type === 'armor') playPickupMedkit();
+    });
+    localSession.setOnKill((killerName, victimName) => {
+      killFeed.value.push({ killerName, victimName, time: Date.now() });
     });
 
     localSession.start();
@@ -149,12 +162,18 @@ function exitGame() {
   router.push({ name: 'home' });
 }
 
+let killFeedInterval: ReturnType<typeof setInterval> | null = null;
 onMounted(() => {
   init();
+  killFeedInterval = setInterval(() => {
+    const now = Date.now();
+    killFeed.value = killFeed.value.filter((e) => now - e.time < KILL_FEED_DURATION_MS);
+  }, 500);
   window.addEventListener('keydown', onScoreboardKey);
 });
 
 onUnmounted(() => {
+  if (killFeedInterval) clearInterval(killFeedInterval);
   window.removeEventListener('keydown', onScoreboardKey);
   localSession?.stop();
   localSession = null;
@@ -205,6 +224,17 @@ watch(() => route.params.mapId, () => {
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
       <canvas ref="canvasRef" class="game-canvas" />
+      <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
+        <div
+          v-for="(entry, i) in killFeedVisible"
+          :key="i"
+          class="kill-feed-entry"
+        >
+          <span class="kill-feed-killer">{{ entry.killerName }}</span>
+          <span class="kill-feed-sep"> killed </span>
+          <span class="kill-feed-victim">{{ entry.victimName }}</span>
+        </div>
+      </div>
       <div v-if="scoreboardOpen" class="scoreboard-overlay">
         <div class="scoreboard panel-cs">
           <div class="scoreboard-header">
@@ -325,6 +355,35 @@ watch(() => route.params.mapId, () => {
 .hint {
   font-size: 0.85rem;
   color: #888;
+}
+.kill-feed.kill-feed-cs {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 12px;
+}
+.kill-feed-entry {
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.75);
+  border-left: 3px solid var(--cs-orange);
+  color: var(--cs-text);
+}
+.kill-feed-killer {
+  color: var(--cs-orange);
+  font-weight: 600;
+}
+.kill-feed-sep {
+  color: var(--cs-text-dim);
+  margin: 0 4px;
+}
+.kill-feed-victim {
+  color: #ccc;
 }
 .scoreboard-overlay {
   position: absolute;

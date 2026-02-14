@@ -8,7 +8,10 @@ interface Wall {
 const PICKUP_RADIUS = 25;
 const AMMO_RESPAWN_MS = 30000;
 const MEDKIT_RESPAWN_MS = 45000;
+const ARMOR_RESPAWN_MS = 40000;
 const AMMO_MAGAZINES = 1;
+const ARMOR_AMOUNT = 10;
+const ARMOR_MAX = 100;
 /** Каждые 15 с невзятые пикапы переносятся в новые позиции */
 export const PICKUP_RELOCATE_MS = 15000;
 
@@ -34,17 +37,17 @@ function randomPos(mapWidth: number, mapHeight: number, walls: Wall[]): { x: num
 
 export interface PickupItem {
   id: string;
-  type: 'ammo' | 'medkit';
+  type: 'ammo' | 'medkit' | 'armor';
   x: number;
   y: number;
   respawnAt: number;
 }
 
-export function createPickups(map: { width: number; height: number; walls: Wall[] }, count: { ammo: number; medkit: number }): PickupItem[] {
+export function createPickups(map: { width: number; height: number; walls: Wall[] }, count: { ammo: number; medkit: number; armor?: number }): PickupItem[] {
   const items: PickupItem[] = [];
   const used = new Set<string>();
 
-  const add = (type: 'ammo' | 'medkit') => {
+  const add = (type: 'ammo' | 'medkit' | 'armor') => {
     const pos = randomPos(map.width, map.height, map.walls);
     const key = `${Math.floor(pos.x / 50)}_${Math.floor(pos.y / 50)}`;
     if (used.has(key)) return;
@@ -60,6 +63,7 @@ export function createPickups(map: { width: number; height: number; walls: Wall[
 
   for (let i = 0; i < (count.ammo ?? 5); i++) add('ammo');
   for (let i = 0; i < (count.medkit ?? 3); i++) add('medkit');
+  for (let i = 0; i < (count.armor ?? 3); i++) add('armor');
   return items;
 }
 
@@ -79,10 +83,10 @@ export function relocatePickups(
 
 export function processPickups(
   pickups: PickupItem[],
-  players: Array<{ id: string; x: number; y: number; health: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
+  players: Array<{ id: string; x: number; y: number; health: number; armor?: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
   getMagazineSize: (weaponId: string) => number,
   now: number,
-  onPickup?: (type: 'ammo' | 'medkit') => void
+  onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void
 ): void {
   for (const p of pickups) {
     if (p.respawnAt > now) continue;
@@ -97,10 +101,15 @@ export function processPickups(
         const magSize = getMagazineSize(pl.weapon) ?? 30;
         pl.ammoReserve += magSize * AMMO_MAGAZINES;
         if (pl.weaponAmmo?.[pl.weapon]) pl.weaponAmmo[pl.weapon].reserve = pl.ammoReserve;
+        p.respawnAt = now + AMMO_RESPAWN_MS;
       } else if (p.type === 'medkit') {
         pl.health = Math.min(100, pl.health + 20);
+        p.respawnAt = now + MEDKIT_RESPAWN_MS;
+      } else if (p.type === 'armor') {
+        const cur = pl.armor ?? 0;
+        pl.armor = Math.min(ARMOR_MAX, cur + ARMOR_AMOUNT);
+        p.respawnAt = now + ARMOR_RESPAWN_MS;
       }
-      p.respawnAt = now + (p.type === 'ammo' ? AMMO_RESPAWN_MS : MEDKIT_RESPAWN_MS);
       onPickup?.(p.type);
       break;
     }

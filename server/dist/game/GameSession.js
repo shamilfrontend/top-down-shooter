@@ -64,6 +64,7 @@ class GameSession {
                     vx: 0,
                     vy: 0,
                     health: 100,
+                    armor: 0,
                     weapon: pistol,
                     ammo: pistolDef.magazineSize,
                     ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
@@ -93,6 +94,7 @@ class GameSession {
                     vx: 0,
                     vy: 0,
                     health: 100,
+                    armor: 0,
                     weapon: pistol,
                     ammo: pistolDef.magazineSize,
                     ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
@@ -109,7 +111,7 @@ class GameSession {
                 });
             }
         }
-        this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 5, medkit: 3 });
+        this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 5, medkit: 3, armor: 3 });
         this.roundStartTime = Date.now();
         this.lastPickupRelocateInterval = Math.floor(Date.now() / Pickups_1.PICKUP_RELOCATE_MS);
         this.tickInterval = setInterval(() => this.tick(), TICK_MS);
@@ -127,6 +129,7 @@ class GameSession {
             p.vx = 0;
             p.vy = 0;
             p.health = 100;
+            p.armor = 0;
             p.isAlive = true;
             p.reloadEndTime = 0;
             this.applyWeaponSlot(p);
@@ -248,7 +251,12 @@ class GameSession {
         if (hit) {
             const target = this.players.get(hit.hitId);
             if (target && target.team !== p.team) {
-                target.health = Math.max(0, target.health - def.damage);
+                const armor = target.armor ?? 0;
+                const reduction = 1 - armor * 0.004; // при 100 броне — 60% урона, при 0 — 100%
+                const damage = Math.max(1, Math.floor(def.damage * Math.max(0.4, reduction)));
+                const armorDamage = Math.floor(damage * 0.5);
+                target.health = Math.max(0, target.health - damage);
+                target.armor = Math.max(0, (target.armor ?? 0) - armorDamage);
                 if (target.health <= 0) {
                     target.isAlive = false;
                     target.deaths++;
@@ -356,10 +364,8 @@ class GameSession {
         this.processReloads();
         const taken = (0, Pickups_1.processPickups)(this.pickups, Array.from(this.players.values()), (w) => Weapons_1.WEAPONS[w]?.magazineSize ?? 30, now);
         for (const t of taken) {
-            this.io.to(this.roomId).emit('game:event', {
-                type: t.type === 'ammo' ? 'pickupAmmo' : 'pickupMedkit',
-                playerId: t.playerId,
-            });
+            const eventType = t.type === 'ammo' ? 'pickupAmmo' : t.type === 'medkit' ? 'pickupMedkit' : 'pickupArmor';
+            this.io.to(this.roomId).emit('game:event', { type: eventType, playerId: t.playerId });
         }
         const relocateInterval = Math.floor(now / Pickups_1.PICKUP_RELOCATE_MS);
         if (relocateInterval !== this.lastPickupRelocateInterval) {
@@ -399,6 +405,7 @@ class GameSession {
                 team: p.team,
                 username: p.username,
                 health: p.health,
+                armor: p.armor,
                 weapon: p.weapon,
                 ammo: p.ammo,
                 ammoReserve: p.ammoReserve,
@@ -433,6 +440,7 @@ class GameSession {
                 team: p.team,
                 username: p.username,
                 health: p.health,
+                armor: p.armor,
                 weapon: p.weapon,
                 ammo: p.ammo,
                 ammoReserve: p.ammoReserve,

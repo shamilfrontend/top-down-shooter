@@ -16,6 +16,7 @@ export interface ServerPlayer {
   team: 'ct' | 't';
   username: string;
   health: number;
+  armor?: number;
   weapon: string;
   ammo: number;
   ammoReserve: number;
@@ -29,8 +30,9 @@ export interface ServerPlayer {
 
 const FOG_RADIUS = 756;
 const CAMERA_LERP = 0.1;
-const MIN_SCALE = 0.3;
-const MAX_SCALE = 2;
+const MIN_SCALE = 0.4;
+const MAX_SCALE = 2.5;
+const DEFAULT_MIN_SCALE = 0.75; // минимальный зум — персонаж выглядит крупнее
 
 // Размеры оружия для отрисовки (длина ствола от центра персонажа)
 const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string }> = {
@@ -52,7 +54,7 @@ export interface GameEngineOptions {
   onInput?: (state: { x: number; y: number; angle: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => void;
   onShoot?: () => void;
   onReload?: () => void;
-  onHUDUpdate?: (state: { health: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
+  onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
   onSwitchWeapon?: (slot: 0 | 1) => void;
   onOpenShop?: () => void;
   networked?: boolean;
@@ -69,7 +71,7 @@ export class GameEngine {
   private onReload?: () => void;
   private onSwitchWeapon?: (slot: 0 | 1) => void;
   private onOpenShop?: () => void;
-  private onHUDUpdate?: (state: { health: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
+  private onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
 
   private localState: LocalPlayerState;
   private players: Player[] = [];
@@ -108,10 +110,11 @@ export class GameEngine {
 
     const rect = this.canvas.getBoundingClientRect();
     this.mapRenderer = new MapRenderer(ctx, this.map, rect.width, rect.height);
-    this.scale = Math.min(
+    const fitScale = Math.min(
       rect.width / this.map.width,
       rect.height / this.map.height
-    ) * 0.85;
+    ) * 0.85 * 0.95;
+    this.scale = Math.max(fitScale, DEFAULT_MIN_SCALE);
 
     const spawn = this.map.spawnPoints.ct[0] || { x: 100, y: 100 };
     this.localState = {
@@ -252,11 +255,12 @@ export class GameEngine {
     this.fogOfWar = enabled;
   }
 
-  getLocalPlayerState(): { health: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number } | null {
+  getLocalPlayerState(): { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number } | null {
     const me = this.lastServerState.find((p) => p.id === this.localPlayerId);
     if (!me) return null;
     return {
       health: me.health,
+      armor: me.armor,
       weapon: me.weapon,
       ammo: me.ammo,
       ammoReserve: me.ammoReserve,

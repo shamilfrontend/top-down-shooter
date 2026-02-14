@@ -155,7 +155,7 @@ async function init() {
         else if (data.winner === 't') playWinTer();
       } else if (data.type === 'pickupAmmo' && data.playerId === mySocketId) {
         playPickupAmmo();
-      } else if (data.type === 'pickupMedkit' && data.playerId === mySocketId) {
+      } else if ((data.type === 'pickupMedkit' || data.type === 'pickupArmor') && data.playerId === mySocketId) {
         playPickupMedkit();
       } else if (data.type === 'gameOver' && data.winner && data.players) {
         gameOver.value = { winner: data.winner, players: data.players };

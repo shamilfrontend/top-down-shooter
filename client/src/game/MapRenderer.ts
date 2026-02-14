@@ -316,85 +316,161 @@ export class MapRenderer {
       const bob = Math.sin(time * 2.5 + p.x * 0.1) * 1.5;
 
       if (p.type === 'ammo') {
-        // === Ящик с патронами (реалистичный) ===
+        // === Ящик с патронами — заметный, яркие гильзы ===
         ctx.save();
         ctx.translate(p.x, p.y + bob);
 
-        // Тень
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.fillRect(-9, 1, 18, 10);
+        // Лёгкое свечение для заметности
+        ctx.shadowColor = 'rgba(255, 180, 50, 0.5)';
+        ctx.shadowBlur = 8;
 
-        // Основной корпус — тёмно-зелёный армейский ящик
-        const boxW = 20;
-        const boxH = 13;
+        // Тень
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(-10, 2, 22, 12);
+
+        const boxW = 22;
+        const boxH = 14;
         const bx = -boxW / 2;
         const by = -boxH / 2;
         const boxGrad = ctx.createLinearGradient(bx, by, bx, by + boxH);
-        boxGrad.addColorStop(0, '#4a5a30');
-        boxGrad.addColorStop(0.5, '#3a4a22');
-        boxGrad.addColorStop(1, '#2c3818');
+        boxGrad.addColorStop(0, '#3d4d28');
+        boxGrad.addColorStop(0.5, '#2d3d1a');
+        boxGrad.addColorStop(1, '#1e2a10');
         ctx.fillStyle = boxGrad;
         ctx.fillRect(bx, by, boxW, boxH);
 
-        // 3D грани
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
         ctx.fillRect(bx, by, boxW, 2);
         ctx.fillRect(bx, by, 2, boxH);
-        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.fillRect(bx, by + boxH - 2, boxW, 2);
         ctx.fillRect(bx + boxW - 2, by, 2, boxH);
 
-        // Металлическая застёжка
-        ctx.fillStyle = '#888';
-        ctx.fillRect(-3, by, 6, 2.5);
-        ctx.fillStyle = '#666';
-        ctx.fillRect(-2, by + 0.5, 4, 1.5);
+        // Яркая оранжево-жёлтая полоска (маркировка патронов)
+        ctx.fillStyle = '#e8b830';
+        ctx.fillRect(bx + 2, by + boxH * 0.3, boxW - 4, 3);
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(bx + 3, by + boxH * 0.3 + 0.5, boxW - 6, 2);
 
-        // Маркировка — полоска
-        ctx.fillStyle = 'rgba(180,160,60,0.5)';
-        ctx.fillRect(bx + 3, by + boxH * 0.35, boxW - 6, 2.5);
-
-        // Видимые патроны сверху (ряд гильз)
-        ctx.fillStyle = '#c8a840';
-        for (let i = 0; i < 5; i++) {
-          const bx2 = -7 + i * 3.5;
-          ctx.fillRect(bx2, by + 3, 2, 4);
-          // Наконечник
-          ctx.fillStyle = '#a06030';
-          ctx.fillRect(bx2, by + 3, 2, 1.5);
-          ctx.fillStyle = '#c8a840';
+        // Гильзы — яркая латунь, крупнее и заметнее
+        const brass = ctx.createLinearGradient(-8, by, 8, by);
+        brass.addColorStop(0, '#ffd060');
+        brass.addColorStop(0.5, '#e8a830');
+        brass.addColorStop(1, '#c08020');
+        ctx.fillStyle = brass;
+        for (let i = 0; i < 6; i++) {
+          const gx = -8 + i * 3.2;
+          ctx.fillRect(gx, by + 2.5, 2.5, 5);
+          ctx.fillStyle = '#b05020';
+          ctx.fillRect(gx, by + 2.5, 2.5, 1.2);
+          ctx.fillStyle = brass;
         }
 
-        // Обводка
-        ctx.strokeStyle = '#1e2a10';
-        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#4a6020';
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(bx, by, boxW, boxH);
 
         ctx.restore();
-      } else if (p.type === 'medkit') {
-        // === Аптечка (реалистичная) ===
+      } else if (p.type === 'armor') {
+        // === Броня +10 — жилет с яркой меткой ===
         ctx.save();
         ctx.translate(p.x, p.y + bob);
 
-        // Тень
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.shadowColor = 'rgba(80, 140, 200, 0.4)';
+        ctx.shadowBlur = 6;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
         ctx.beginPath();
-        ctx.ellipse(0, 2, 11, 9, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 3, 12, 9, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Корпус чемоданчика — белый/светло-серый с градиентом
-        const mkW = 20;
-        const mkH = 16;
+        const vestW = 20;
+        const vestH = 16;
+        const vx = -vestW / 2;
+        const vy = -vestH / 2;
+        const vestGrad = ctx.createLinearGradient(vx, vy, vx, vy + vestH);
+        vestGrad.addColorStop(0, '#4a6a5a');
+        vestGrad.addColorStop(0.4, '#3a5a4a');
+        vestGrad.addColorStop(1, '#2a4a3a');
+        ctx.fillStyle = vestGrad;
+        const vr = 3;
+        ctx.beginPath();
+        ctx.moveTo(vx + vr, vy);
+        ctx.lineTo(vx + vestW - vr, vy);
+        ctx.quadraticCurveTo(vx + vestW, vy, vx + vestW, vy + vr);
+        ctx.lineTo(vx + vestW, vy + vestH - vr);
+        ctx.quadraticCurveTo(vx + vestW, vy + vestH, vx + vestW - vr, vy + vestH);
+        ctx.lineTo(vx + vr, vy + vestH);
+        ctx.quadraticCurveTo(vx, vy + vestH, vx, vy + vestH - vr);
+        ctx.lineTo(vx, vy + vr);
+        ctx.quadraticCurveTo(vx, vy, vx + vr, vy);
+        ctx.closePath();
+        ctx.fill();
+
+        // Карман/пластина по центру (как у тактического жилета)
+        ctx.fillStyle = 'rgba(60, 90, 70, 0.9)';
+        ctx.fillRect(vx + 4, vy + 3, vestW - 8, vestH - 6);
+        ctx.strokeStyle = 'rgba(100, 160, 120, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(vx + 4, vy + 3, vestW - 8, vestH - 6);
+
+        ctx.fillStyle = '#e8f0e8';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('+10', 0, 0);
+        ctx.strokeStyle = '#1a3a22';
+        ctx.lineWidth = 0.5;
+        ctx.strokeText('+10', 0, 0);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(vx, vy, vestW, 2);
+        ctx.fillRect(vx, vy, 2, vestH);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(vx, vy + vestH - 2, vestW, 2);
+        ctx.fillRect(vx + vestW - 2, vy, 2, vestH);
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#2a4a32';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(vx + vr, vy);
+        ctx.lineTo(vx + vestW - vr, vy);
+        ctx.quadraticCurveTo(vx + vestW, vy, vx + vestW, vy + vr);
+        ctx.lineTo(vx + vestW, vy + vestH - vr);
+        ctx.quadraticCurveTo(vx + vestW, vy + vestH, vx + vestW - vr, vy + vestH);
+        ctx.lineTo(vx + vr, vy + vestH);
+        ctx.quadraticCurveTo(vx, vy + vestH, vx, vy + vestH - vr);
+        ctx.lineTo(vx, vy + vr);
+        ctx.quadraticCurveTo(vx, vy, vx + vr, vy);
+        ctx.closePath();
+        ctx.stroke();
+
+        ctx.restore();
+      } else if (p.type === 'medkit') {
+        // === Аптечка — яркий красный крест, узнаваемая иконка ===
+        ctx.save();
+        ctx.translate(p.x, p.y + bob);
+
+        ctx.shadowColor = 'rgba(220, 50, 50, 0.5)';
+        ctx.shadowBlur = 8;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(0, 3, 12, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const mkW = 22;
+        const mkH = 18;
         const mx = -mkW / 2;
         const my = -mkH / 2;
+        const cr = 4;
         const mkGrad = ctx.createLinearGradient(mx, my, mx, my + mkH);
-        mkGrad.addColorStop(0, '#f0f0f0');
-        mkGrad.addColorStop(0.4, '#e8e8e8');
-        mkGrad.addColorStop(1, '#d0d0d0');
+        mkGrad.addColorStop(0, '#f5f5f5');
+        mkGrad.addColorStop(0.35, '#eaeaea');
+        mkGrad.addColorStop(1, '#d5d5d5');
         ctx.fillStyle = mkGrad;
-
-        // Скруглённые углы
-        const cr = 3;
         ctx.beginPath();
         ctx.moveTo(mx + cr, my);
         ctx.lineTo(mx + mkW - cr, my);
@@ -408,42 +484,42 @@ export class MapRenderer {
         ctx.closePath();
         ctx.fill();
 
-        // 3D грани
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
         ctx.fillRect(mx + cr, my, mkW - cr * 2, 2);
-        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
         ctx.fillRect(mx + cr, my + mkH - 2, mkW - cr * 2, 2);
 
-        // Красный крест
-        const crossW = 3.5;
-        const crossH = 10;
-        ctx.fillStyle = '#cc2020';
+        // Крест — яркий красный, крупнее, с белой обводкой для контраста
+        const crossW = 4;
+        const crossH = 12;
+        const redGrad = ctx.createLinearGradient(-crossH / 2, 0, crossH / 2, 0);
+        redGrad.addColorStop(0, '#e03030');
+        redGrad.addColorStop(0.5, '#d02020');
+        redGrad.addColorStop(1, '#b01010');
+        ctx.fillStyle = redGrad;
         ctx.fillRect(-crossW / 2, -crossH / 2, crossW, crossH);
         ctx.fillRect(-crossH / 2, -crossW / 2, crossH, crossW);
-        // Тень внутри креста
-        ctx.fillStyle = 'rgba(0,0,0,0.15)';
-        ctx.fillRect(-crossW / 2 + 0.5, -crossH / 2 + 0.5, crossW - 1, crossH - 1);
-        ctx.fillRect(-crossH / 2 + 0.5, -crossW / 2 + 0.5, crossH - 1, crossW - 1);
-        // Обводка креста
-        ctx.strokeStyle = '#991515';
-        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.2;
         ctx.strokeRect(-crossW / 2, -crossH / 2, crossW, crossH);
         ctx.strokeRect(-crossH / 2, -crossW / 2, crossH, crossW);
+        ctx.strokeStyle = '#a01010';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(-crossW / 2 + 0.5, -crossH / 2 + 0.5, crossW - 1, crossH - 1);
+        ctx.strokeRect(-crossH / 2 + 0.5, -crossW / 2 + 0.5, crossH - 1, crossW - 1);
 
-        // Ручка чемоданчика сверху
-        ctx.strokeStyle = '#999';
+        ctx.strokeStyle = '#888';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(0, my - 1, 4, Math.PI, 0);
+        ctx.arc(0, my - 1.5, 5, Math.PI, 0);
         ctx.stroke();
 
-        // Защёлки по бокам
-        ctx.fillStyle = '#bbb';
-        ctx.fillRect(mx + 2, -1, 2, 2);
-        ctx.fillRect(mx + mkW - 4, -1, 2, 2);
+        ctx.fillStyle = '#999';
+        ctx.fillRect(mx + 3, -1.5, 2.5, 2.5);
+        ctx.fillRect(mx + mkW - 5.5, -1.5, 2.5, 2.5);
 
-        // Обводка корпуса
-        ctx.strokeStyle = '#aaa';
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#999';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(mx + cr, my);
