@@ -233,7 +233,7 @@ function isSelected(key: number): boolean {
 }
 .weapon-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 17px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -241,7 +241,7 @@ function isSelected(key: number): boolean {
   text-shadow: 1px 1px 0 #000;
 }
 .ammo {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--cs-orange);
   font-weight: 600;
 }
@@ -262,15 +262,15 @@ function isSelected(key: number): boolean {
   gap: 8px;
 }
 .hp-armor-label {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--cs-text-dim);
-  width: 24px;
+  width: 28px;
 }
 .hp-bar-cs,
 .armor-bar-cs {
   width: 100px;
-  height: 22px;
+  height: 26px;
   background: #0a0a0a;
   border: 1px solid var(--cs-bevel-dark);
   border-top-color: var(--cs-bevel-light);
@@ -296,7 +296,7 @@ function isSelected(key: number): boolean {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
   text-shadow: 1px 1px 0 #000;

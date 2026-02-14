@@ -518,34 +518,40 @@ export class GameEngine {
       ctx.rotate(a);
 
       if (p.isAlive) {
-        // --- Ноги (два небольших овала позади торса) ---
-        const legOffsetX = -R * 0.35;
-        const legSpreadY = R * 0.55;
-        ctx.fillStyle = !p.isAlive ? '#333' : isCT ? '#1e3050' : '#3a4428';
-        // Левая нога
+        const bootColor = isCT ? '#1a2840' : '#2d3520';
+        const legOffsetX = -R * 0.38;
+        const legSpreadY = R * 0.52;
+        // Ноги: бедро + стопа (читаются как две ноги)
+        ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
         ctx.beginPath();
-        ctx.ellipse(legOffsetX, -legSpreadY, R * 0.28, R * 0.22, 0, 0, Math.PI * 2);
+        ctx.ellipse(legOffsetX, -legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
         ctx.fill();
-        // Правая нога
+        ctx.fillStyle = bootColor;
         ctx.beginPath();
-        ctx.ellipse(legOffsetX, legSpreadY, R * 0.28, R * 0.22, 0, 0, Math.PI * 2);
+        ctx.ellipse(legOffsetX - R * 0.12, -legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
+        ctx.beginPath();
+        ctx.ellipse(legOffsetX, legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = bootColor;
+        ctx.beginPath();
+        ctx.ellipse(legOffsetX - R * 0.12, legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // --- Торс (овал) ---
+        // Торс: плечи шире, форма ближе к туловищу
         ctx.fillStyle = torsoBorder;
         ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.72, R * 0.58, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, R * 0.7, R * 0.6, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = torsoColor;
         ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.68, R * 0.54, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, R * 0.66, R * 0.56, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        // Детали бронежилета / разгрузки
         ctx.strokeStyle = gearColor;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.45, R * 0.35, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, R * 0.44, R * 0.36, 0, 0, Math.PI * 2);
         ctx.stroke();
 
         // --- Руки ---
@@ -613,9 +619,19 @@ export class GameEngine {
         ctx.lineWidth = 1;
         ctx.stroke();
 
+        // --- Шея ---
+        const headDist = R * 0.35;
+        const neckX = headDist * 0.45;
+        ctx.fillStyle = skinColor;
+        ctx.beginPath();
+        ctx.ellipse(neckX, 0, R * 0.1, R * 0.14, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
         // --- Голова ---
-        const headDist = R * 0.3;
-        const headR = R * 0.32;
+        const headR = R * 0.28;
         ctx.fillStyle = headBorder;
         ctx.beginPath();
         ctx.arc(headDist, 0, headR + 1.5, 0, Math.PI * 2);
@@ -658,19 +674,32 @@ export class GameEngine {
         ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        // Мёртвый — лежащий силуэт
+        // Мёртвый — лежащий человек (голова, торс, ноги, руки в стороны)
         ctx.fillStyle = '#3a3a3a';
         ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.7, R * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, R * 0.72, R * 0.48, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2;
-        const cr = R * 0.35;
+        ctx.fillStyle = '#444';
         ctx.beginPath();
-        ctx.moveTo(-cr, -cr);
-        ctx.lineTo(cr, cr);
-        ctx.moveTo(cr, -cr);
-        ctx.lineTo(-cr, cr);
+        ctx.arc(R * 0.25, 0, R * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3a3a3a';
+        ctx.beginPath();
+        ctx.ellipse(-R * 0.35, -R * 0.5, R * 0.2, R * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-R * 0.35, R * 0.5, R * 0.2, R * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(R * 0.5, -R * 0.35, R * 0.18, R * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(R * 0.5, R * 0.35, R * 0.18, R * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, R * 0.7, R * 0.46, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
 
