@@ -95,8 +95,8 @@ export function computeBotAction(
     }
   }
 
-  let huntTargetX: number;
-  let huntTargetY: number;
+  let huntTargetX = botX;
+  let huntTargetY = botY;
   let hasHuntTarget = false;
   if (enemies.length > 0) {
     let nearest = enemies[0];
