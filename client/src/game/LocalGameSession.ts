@@ -1,0 +1,437 @@
+import type { MapConfig } from 'top-down-cs-shared';
+import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
+import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './local/weapons';
+import { raycast } from './local/raycast';
+import { createPickups, processPickups, getActivePickups, type PickupItem } from './local/localPickups';
+import { computeBotAction, getBotName } from './local/LocalBotAI';
+
+const TICK_RATE = 20;
+const TICK_MS = 1000 / TICK_RATE;
+const PLAYER_RADIUS = 23;
+const ROUND_TIME_MS = 180 * 1000;
+const ROUND_END_DELAY_MS = 5000;
+const BOT_COUNT = 2;
+
+export interface LocalPlayer {
+  id: string;
+  team: 'ct' | 't';
+  username: string;
+  x: number;
+  y: number;
+  angle: number;
+  vx: number;
+  vy: number;
+  health: number;
+  weapon: string;
+  ammo: number;
+  ammoReserve: number;
+  isAlive: boolean;
+  kills: number;
+  deaths: number;
+  credits: number;
+  weapons: [string | null, string];
+  currentSlot: 0 | 1;
+  weaponAmmo: Record<string, { ammo: number; reserve: number }>;
+  lastInput: InputState;
+  lastShotTime: number;
+  reloadEndTime: number;
+}
+
+export interface LocalGameState {
+  players: Array<{
+    id: string;
+    x: number;
+    y: number;
+    angle: number;
+    team: 'ct' | 't';
+    username: string;
+    health: number;
+    weapon: string;
+    ammo: number;
+    ammoReserve: number;
+    isAlive: boolean;
+    kills: number;
+    deaths: number;
+    credits: number;
+    weapons: [string | null, string];
+    currentSlot: number;
+  }>;
+  pickups: Array<{ id: string; type: string; x: number; y: number }>;
+  round: number;
+  roundTimeLeft: number;
+  roundWins: { ct: number; t: number };
+  roundPhase: 'playing' | 'ended';
+}
+
+export class LocalGameSession {
+  private map: MapConfig;
+  private players = new Map<string, LocalPlayer>();
+  private pickups: PickupItem[] = [];
+  private tickInterval: ReturnType<typeof setInterval> | null = null;
+  private tickCount = 0;
+  private round = 1;
+  private roundStartTime = 0;
+  private roundWins = { ct: 0, t: 0 };
+  private roundPhase: 'playing' | 'ended' = 'playing';
+  private roundEndAt = 0;
+  private onState?: (state: LocalGameState) => void;
+  private onShotTrail?: (x1: number, y1: number, x2: number, y2: number) => void;
+  private onShot?: (weapon: string) => void;
+  private onRoundEnd?: (winner: 'ct' | 't') => void;
+
+  constructor(map: MapConfig) {
+    this.map = map;
+  }
+
+  start() {
+    const spawns = { ct: [...this.map.spawnPoints.ct], t: [...this.map.spawnPoints.t] };
+    let ctIdx = 0;
+    let tIdx = 0;
+
+    const pistol = START_WEAPONS.ct;
+    const pistolDef = WEAPONS[pistol];
+    const sp = spawns.ct[0] || { x: 100, y: 100 };
+
+    this.players.set('local', {
+      id: 'local',
+      team: 'ct',
+      username: 'You',
+      x: sp.x + 30,
+      y: sp.y + 30,
+      angle: 0,
+      vx: 0,
+      vy: 0,
+      health: 100,
+      weapon: pistol,
+      ammo: pistolDef.magazineSize,
+      ammoReserve: 24,
+      isAlive: true,
+      kills: 0,
+      deaths: 0,
+      credits: CREDITS_START,
+      weapons: [null, pistol],
+      currentSlot: 1,
+      weaponAmmo: {},
+      lastInput: { up: false, down: false, left: false, right: false },
+      lastShotTime: 0,
+      reloadEndTime: 0,
+    });
+
+    for (let i = 0; i < BOT_COUNT; i++) {
+      const team: 'ct' | 't' = i === 0 ? 't' : 'ct';
+      const points = team === 'ct' ? spawns.ct : spawns.t;
+      const idx = team === 'ct' ? ctIdx++ : tIdx++;
+      const spBot = points[idx % points.length] || { x: 100, y: 100 };
+      const botId = `bot-${i}`;
+      const pDef = WEAPONS[pistol];
+      this.players.set(botId, {
+        id: botId,
+        team,
+        username: getBotName(i),
+        x: spBot.x + 30,
+        y: spBot.y + 30,
+        angle: 0,
+        vx: 0,
+        vy: 0,
+        health: 100,
+        weapon: pistol,
+        ammo: pDef.magazineSize,
+        ammoReserve: 24,
+        isAlive: true,
+        kills: 0,
+        deaths: 0,
+        credits: CREDITS_START,
+        weapons: [null, pistol],
+        currentSlot: 1,
+        weaponAmmo: {},
+        lastInput: { up: false, down: false, left: false, right: false },
+        lastShotTime: 0,
+        reloadEndTime: 0,
+      });
+    }
+
+    this.pickups = createPickups(this.map, { ammo: 5, medkit: 3 });
+    this.roundStartTime = Date.now();
+    this.tickInterval = setInterval(() => this.tick(), TICK_MS);
+  }
+
+  setOnState(cb: (state: LocalGameState) => void) {
+    this.onState = cb;
+  }
+
+  setOnShotTrail(cb: (x1: number, y1: number, x2: number, y2: number) => void) {
+    this.onShotTrail = cb;
+  }
+
+  setOnShot(cb: (weapon: string) => void) {
+    this.onShot = cb;
+  }
+
+  setOnRoundEnd(cb: (winner: 'ct' | 't') => void) {
+    this.onRoundEnd = cb;
+  }
+
+  setInput(id: string, input: InputState) {
+    const p = this.players.get(id);
+    if (p) p.lastInput = input;
+  }
+
+  setAngle(id: string, angle: number) {
+    const p = this.players.get(id);
+    if (p) p.angle = angle;
+  }
+
+  shoot(id: string): void {
+    const p = this.players.get(id);
+    if (!p || !p.isAlive) return;
+
+    const now = Date.now();
+    const def = WEAPONS[p.weapon];
+    if (!def) return;
+
+    if (p.reloadEndTime > now) return;
+    if (p.ammo <= 0) {
+      this.startReload(p);
+      return;
+    }
+    if (now - p.lastShotTime < def.fireRateMs) return;
+
+    p.lastShotTime = now;
+    p.ammo--;
+    p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
+
+    const spreadAngle = (Math.random() - 0.5) * def.spread * Math.PI;
+    const shotAngle = p.angle + spreadAngle;
+
+    const players = Array.from(this.players.values())
+      .filter((op) => op.isAlive)
+      .map((op) => ({ id: op.id, team: op.team, x: op.x, y: op.y, radius: PLAYER_RADIUS }));
+
+    const hit = raycast(p.x, p.y, shotAngle, def.range, 0, this.map.walls, players, id);
+
+    const trailDist = hit ? hit.dist : def.range;
+    const trailEndX = p.x + Math.cos(shotAngle) * trailDist;
+    const trailEndY = p.y + Math.sin(shotAngle) * trailDist;
+    this.onShotTrail?.(p.x, p.y, trailEndX, trailEndY);
+    this.onShot?.(p.weapon);
+
+    if (hit) {
+      const target = this.players.get(hit.hitId);
+      if (target && target.team !== p.team) {
+        target.health = Math.max(0, target.health - def.damage);
+        if (target.health <= 0) {
+          target.isAlive = false;
+          target.deaths++;
+          p.kills++;
+          p.credits += CREDITS_KILL;
+        }
+      }
+    }
+  }
+
+  reload(id: string): void {
+    const p = this.players.get(id);
+    if (!p || !p.isAlive || p.ammoReserve <= 0) return;
+    const def = WEAPONS[p.weapon];
+    if (!def || p.ammo >= def.magazineSize) return;
+    if (Date.now() < p.reloadEndTime) return;
+    this.startReload(p);
+  }
+
+  private startReload(p: LocalPlayer) {
+    const def = WEAPONS[p.weapon];
+    if (!def || def.reloadTimeMs <= 0) return;
+    p.reloadEndTime = Date.now() + def.reloadTimeMs;
+  }
+
+  switchWeapon(id: string, slot: 0 | 1): void {
+    const p = this.players.get(id);
+    if (!p || !p.isAlive) return;
+    const w = p.weapons[slot];
+    if (!w && slot === 0) return;
+    if (slot === p.currentSlot) return;
+    p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
+    p.currentSlot = slot;
+    this.applyWeaponSlot(p);
+  }
+
+  buyWeapon(id: string, weaponId: string): void {
+    const p = this.players.get(id);
+    if (!p || !p.isAlive) return;
+    const def = WEAPONS[weaponId];
+    if (!def || !def.price) return;
+    if (p.credits < def.price) return;
+    if (weaponId === 'ak47' || weaponId === 'm4') {
+      if (p.weapons[0]) return;
+      p.credits -= def.price;
+      p.weapons[0] = weaponId;
+      p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };
+      p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
+      p.currentSlot = 0;
+      this.applyWeaponSlot(p);
+    }
+  }
+
+  private applyWeaponSlot(p: LocalPlayer) {
+    const w = p.weapons[p.currentSlot];
+    p.weapon = w ?? p.weapons[1];
+    const def = WEAPONS[p.weapon];
+    if (!def) return;
+    const saved = p.weaponAmmo[p.weapon];
+    if (saved) {
+      p.ammo = saved.ammo;
+      p.ammoReserve = saved.reserve;
+    } else {
+      p.ammo = def.magazineSize;
+      p.ammoReserve = p.weapon === 'usp' ? 24 : 90;
+    }
+  }
+
+  private respawnAll() {
+    const spawns = { ct: [...this.map.spawnPoints.ct], t: [...this.map.spawnPoints.t] };
+    let ctIdx = 0;
+    let tIdx = 0;
+    for (const p of this.players.values()) {
+      const points = p.team === 'ct' ? spawns.ct : spawns.t;
+      const idx = p.team === 'ct' ? ctIdx++ : tIdx++;
+      const sp = points[idx % points.length] || { x: 100, y: 100 };
+      p.x = sp.x + 30;
+      p.y = sp.y + 30;
+      p.vx = 0;
+      p.vy = 0;
+      p.health = 100;
+      p.isAlive = true;
+      p.reloadEndTime = 0;
+      this.applyWeaponSlot(p);
+    }
+  }
+
+  private checkRoundEnd(now: number): void {
+    if (this.roundPhase === 'ended') {
+      if (now >= this.roundEndAt) {
+        this.round++;
+        this.roundPhase = 'playing';
+        this.roundStartTime = now;
+        this.respawnAll();
+      }
+      return;
+    }
+
+    const ctAlive = Array.from(this.players.values()).filter((p) => p.team === 'ct' && p.isAlive).length;
+    const tAlive = Array.from(this.players.values()).filter((p) => p.team === 't' && p.isAlive).length;
+    const roundTimeLeft = Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000));
+
+    let winner: 'ct' | 't' | null = null;
+    if (tAlive === 0 && ctAlive > 0) winner = 'ct';
+    else if (ctAlive === 0 && tAlive > 0) winner = 't';
+    else if (roundTimeLeft <= 0) winner = ctAlive > tAlive ? 'ct' : tAlive > ctAlive ? 't' : null;
+
+    if (winner) {
+      if (winner === 'ct') this.roundWins.ct++;
+      else this.roundWins.t++;
+      this.roundPhase = 'ended';
+      this.roundEndAt = now + ROUND_END_DELAY_MS;
+      this.onRoundEnd?.(winner);
+      for (const pl of this.players.values()) {
+        pl.credits += pl.team === winner ? CREDITS_ROUND_WIN : CREDITS_ROUND_LOSS;
+      }
+    }
+  }
+
+  private processReloads() {
+    const now = Date.now();
+    for (const p of this.players.values()) {
+      if (p.reloadEndTime > 0 && now >= p.reloadEndTime) {
+        const def = WEAPONS[p.weapon];
+        if (def) {
+          const need = def.magazineSize - p.ammo;
+          const take = Math.min(need, p.ammoReserve);
+          p.ammo += take;
+          p.ammoReserve -= take;
+          p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
+        }
+        p.reloadEndTime = 0;
+      }
+    }
+  }
+
+  private tick() {
+    const dt = 1 / TICK_RATE;
+    const now = Date.now();
+
+    this.checkRoundEnd(now);
+
+    for (const p of this.players.values()) {
+      if (p.id.startsWith('bot-') && p.isAlive) {
+        const playersList = Array.from(this.players.values()).map((op) => ({
+          id: op.id,
+          team: op.team,
+          x: op.x,
+          y: op.y,
+          isAlive: op.isAlive,
+        }));
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount);
+        p.lastInput = action.input;
+        p.angle = action.angle;
+        if (action.shoot) this.shoot(p.id);
+      }
+    }
+
+    this.processReloads();
+    processPickups(
+      this.pickups,
+      Array.from(this.players.values()),
+      (w) => WEAPONS[w]?.magazineSize ?? 30,
+      now
+    );
+
+    for (const p of this.players.values()) {
+      if (!p.isAlive) continue;
+      const state: LocalPlayerState = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, angle: p.angle };
+      const next = updateLocalPlayer(state, p.lastInput, this.map, dt);
+      p.x = next.x;
+      p.y = next.y;
+      p.vx = next.vx;
+      p.vy = next.vy;
+    }
+
+    this.tickCount++;
+
+    const roundTimeLeft = this.roundPhase === 'playing'
+      ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))
+      : Math.max(0, Math.floor((this.roundEndAt - now) / 1000));
+
+    this.onState?.({
+      players: Array.from(this.players.values()).map((p) => ({
+        id: p.id,
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        team: p.team,
+        username: p.username,
+        health: p.health,
+        weapon: p.weapon,
+        ammo: p.ammo,
+        ammoReserve: p.ammoReserve,
+        isAlive: p.isAlive,
+        kills: p.kills,
+        deaths: p.deaths,
+        credits: p.credits,
+        weapons: p.weapons,
+        currentSlot: p.currentSlot,
+      })),
+      pickups: getActivePickups(this.pickups, now),
+      round: this.round,
+      roundTimeLeft,
+      roundWins: { ...this.roundWins },
+      roundPhase: this.roundPhase,
+    });
+  }
+
+  stop() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+    }
+  }
+}

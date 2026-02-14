@@ -1,0 +1,20 @@
+{
+  "name": "top-down-cs",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"yarn dev:server\" \"yarn dev:client\"",
+    "dev:server": "yarn workspace top-down-cs-server dev",
+    "dev:client": "yarn workspace top-down-cs-client dev",
+    "build": "yarn workspace top-down-cs-server build && yarn workspace top-down-cs-client build",
+    "install:all": "yarn install"
+  },
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
