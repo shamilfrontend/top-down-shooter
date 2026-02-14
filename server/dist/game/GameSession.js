@@ -32,6 +32,7 @@ class GameSession {
         this.roundWins = { ct: 0, t: 0 };
         this.roundPhase = 'playing';
         this.roundEndAt = 0;
+        this.lastPickupRelocateInterval = -1;
         this.botDifficulties = new Map();
         this.io = io;
         this.roomId = roomId;
@@ -110,6 +111,7 @@ class GameSession {
         }
         this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 5, medkit: 3 });
         this.roundStartTime = Date.now();
+        this.lastPickupRelocateInterval = Math.floor(Date.now() / Pickups_1.PICKUP_RELOCATE_MS);
         this.tickInterval = setInterval(() => this.tick(), TICK_MS);
     }
     respawnAll() {
@@ -352,7 +354,18 @@ class GameSession {
             }
         }
         this.processReloads();
-        (0, Pickups_1.processPickups)(this.pickups, Array.from(this.players.values()), (w) => Weapons_1.WEAPONS[w]?.magazineSize ?? 30, now);
+        const taken = (0, Pickups_1.processPickups)(this.pickups, Array.from(this.players.values()), (w) => Weapons_1.WEAPONS[w]?.magazineSize ?? 30, now);
+        for (const t of taken) {
+            this.io.to(this.roomId).emit('game:event', {
+                type: t.type === 'ammo' ? 'pickupAmmo' : 'pickupMedkit',
+                playerId: t.playerId,
+            });
+        }
+        const relocateInterval = Math.floor(now / Pickups_1.PICKUP_RELOCATE_MS);
+        if (relocateInterval !== this.lastPickupRelocateInterval) {
+            this.lastPickupRelocateInterval = relocateInterval;
+            (0, Pickups_1.relocatePickups)(this.pickups, this.map, now);
+        }
         for (const p of this.players.values()) {
             if (!p.isAlive)
                 continue;

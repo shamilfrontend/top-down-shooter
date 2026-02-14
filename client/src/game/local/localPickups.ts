@@ -9,6 +9,8 @@ const PICKUP_RADIUS = 25;
 const AMMO_RESPAWN_MS = 30000;
 const MEDKIT_RESPAWN_MS = 45000;
 const AMMO_MAGAZINES = 1;
+/** Каждые 15 с невзятые пикапы переносятся в новые позиции */
+export const PICKUP_RELOCATE_MS = 15000;
 
 function isInWall(x: number, y: number, walls: Wall[], padding = 40): boolean {
   for (const w of walls) {
@@ -61,11 +63,26 @@ export function createPickups(map: { width: number; height: number; walls: Wall[
   return items;
 }
 
+/** Переносит все активные (невзятые) пикапы в новые случайные позиции. Вызывать при смене 15-сек интервала. */
+export function relocatePickups(
+  pickups: PickupItem[],
+  map: { width: number; height: number; walls: Wall[] },
+  now: number
+): void {
+  for (const p of pickups) {
+    if (p.respawnAt > now) continue;
+    const pos = randomPos(map.width, map.height, map.walls);
+    p.x = pos.x;
+    p.y = pos.y;
+  }
+}
+
 export function processPickups(
   pickups: PickupItem[],
   players: Array<{ id: string; x: number; y: number; health: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
   getMagazineSize: (weaponId: string) => number,
-  now: number
+  now: number,
+  onPickup?: (type: 'ammo' | 'medkit') => void
 ): void {
   for (const p of pickups) {
     if (p.respawnAt > now) continue;
@@ -84,6 +101,7 @@ export function processPickups(
         pl.health = Math.min(100, pl.health + 20);
       }
       p.respawnAt = now + (p.type === 'ammo' ? AMMO_RESPAWN_MS : MEDKIT_RESPAWN_MS);
+      onPickup?.(p.type);
       break;
     }
   }

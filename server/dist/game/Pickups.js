@@ -1,11 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PICKUP_RELOCATE_MS = void 0;
 exports.createPickups = createPickups;
+exports.relocatePickups = relocatePickups;
 exports.processPickups = processPickups;
 exports.getActivePickups = getActivePickups;
 const PICKUP_RADIUS = 25;
 const AMMO_RESPAWN_MS = 30000;
 const MEDKIT_RESPAWN_MS = 45000;
+/** Каждые 15 с невзятые пикапы переносятся в новые позиции */
+exports.PICKUP_RELOCATE_MS = 15000;
 const AMMO_MAGAZINES = 1;
 const MEDKIT_HP = 20;
 function isInWall(x, y, walls, padding = 40) {
@@ -51,7 +55,18 @@ function createPickups(map, count) {
         add('medkit');
     return items;
 }
+/** Переносит все активные (невзятые) пикапы в новые случайные позиции. Вызывать при смене 15-сек интервала. */
+function relocatePickups(pickups, map, now) {
+    for (const p of pickups) {
+        if (p.respawnAt > now)
+            continue;
+        const pos = randomPos(map.width, map.height, map.walls);
+        p.x = pos.x;
+        p.y = pos.y;
+    }
+}
 function processPickups(pickups, players, getMagazineSize, now) {
+    const taken = [];
     for (const p of pickups) {
         if (p.respawnAt > now)
             continue;
@@ -72,9 +87,11 @@ function processPickups(pickups, players, getMagazineSize, now) {
                 pl.health = Math.min(100, pl.health + MEDKIT_HP);
             }
             p.respawnAt = now + (p.type === 'ammo' ? AMMO_RESPAWN_MS : MEDKIT_RESPAWN_MS);
+            taken.push({ playerId: pl.socketId, type: p.type });
             break;
         }
     }
+    return taken;
 }
 function getActivePickups(pickups, now) {
     return pickups

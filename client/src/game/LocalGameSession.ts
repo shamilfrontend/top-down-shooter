@@ -2,7 +2,7 @@ import type { MapConfig } from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './local/weapons';
 import { raycast } from './local/raycast';
-import { createPickups, processPickups, getActivePickups, type PickupItem } from './local/localPickups';
+import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
 import { computeBotAction, getBotName } from './local/LocalBotAI';
 
 const TICK_RATE = 20;
@@ -10,9 +10,17 @@ const TICK_MS = 1000 / TICK_RATE;
 const PLAYER_RADIUS = 23;
 const ROUND_TIME_MS = 180 * 1000;
 const ROUND_END_DELAY_MS = 5000;
-/** Союзников (игрок + боты CT) считаем «нами»; соперников (T) делаем в 2 раза больше */
-const CT_BOT_COUNT = 1;
-const OPPONENT_MULTIPLIER = 2;
+export type BotDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface LocalGameSessionOptions {
+  ctBotCount?: number;
+  tBotCount?: number;
+  botDifficulty?: BotDifficulty;
+}
+
+/** По умолчанию: 0 CT (без союзников) + 10 T = 10 ботов */
+const DEFAULT_CT_BOTS = 0;
+const DEFAULT_T_BOTS = 10;
 
 export interface LocalPlayer {
   id: string;
@@ -67,6 +75,7 @@ export interface LocalGameState {
 
 export class LocalGameSession {
   private map: MapConfig;
+  private options: LocalGameSessionOptions;
   private players = new Map<string, LocalPlayer>();
   private pickups: PickupItem[] = [];
   private tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -76,13 +85,16 @@ export class LocalGameSession {
   private roundWins = { ct: 0, t: 0 };
   private roundPhase: 'playing' | 'ended' = 'playing';
   private roundEndAt = 0;
+  private lastPickupRelocateInterval = -1;
   private onState?: (state: LocalGameState) => void;
   private onShotTrail?: (x1: number, y1: number, x2: number, y2: number) => void;
   private onShot?: (weapon: string) => void;
   private onRoundEnd?: (winner: 'ct' | 't') => void;
+  private onPickup?: (type: 'ammo' | 'medkit') => void;
 
-  constructor(map: MapConfig) {
+  constructor(map: MapConfig, options?: LocalGameSessionOptions) {
     this.map = map;
+    this.options = options ?? {};
   }
 
   start() {
@@ -119,11 +131,11 @@ export class LocalGameSession {
       reloadEndTime: 0,
     });
 
-    const ourCount = 1 + CT_BOT_COUNT; // игрок + союзные боты
-    const tBotCount = ourCount * OPPONENT_MULTIPLIER; // соперников в 2 раза больше
+    const ctBotCount = this.options.ctBotCount ?? DEFAULT_CT_BOTS;
+    const tBotCount = this.options.tBotCount ?? DEFAULT_T_BOTS;
     let botIndex = 0;
 
-    for (let i = 0; i < CT_BOT_COUNT; i++) {
+    for (let i = 0; i < ctBotCount; i++) {
       const points = spawns.ct;
       const idx = ctIdx++;
       const spBot = points[idx % points.length] || { x: 100, y: 100 };
@@ -189,6 +201,7 @@ export class LocalGameSession {
 
     this.pickups = createPickups(this.map, { ammo: 5, medkit: 3 });
     this.roundStartTime = Date.now();
+    this.lastPickupRelocateInterval = Math.floor(Date.now() / PICKUP_RELOCATE_MS);
     this.tickInterval = setInterval(() => this.tick(), TICK_MS);
   }
 
@@ -206,6 +219,10 @@ export class LocalGameSession {
 
   setOnRoundEnd(cb: (winner: 'ct' | 't') => void) {
     this.onRoundEnd = cb;
+  }
+
+  setOnPickup(cb: (type: 'ammo' | 'medkit') => void) {
+    this.onPickup = cb;
   }
 
   setInput(id: string, input: InputState) {
@@ -407,7 +424,8 @@ export class LocalGameSession {
           y: op.y,
           isAlive: op.isAlive,
         }));
-        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount);
+        const difficulty = this.options.botDifficulty ?? 'medium';
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty);
         p.lastInput = action.input;
         p.angle = action.angle;
         if (action.shoot) this.shoot(p.id);
@@ -419,8 +437,15 @@ export class LocalGameSession {
       this.pickups,
       Array.from(this.players.values()),
       (w) => WEAPONS[w]?.magazineSize ?? 30,
-      now
+      now,
+      this.onPickup
     );
+
+    const relocateInterval = Math.floor(now / PICKUP_RELOCATE_MS);
+    if (relocateInterval !== this.lastPickupRelocateInterval) {
+      this.lastPickupRelocateInterval = relocateInterval;
+      relocatePickups(this.pickups, this.map, now);
+    }
 
     for (const p of this.players.values()) {
       if (!p.isAlive) continue;

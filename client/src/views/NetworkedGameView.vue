@@ -16,7 +16,7 @@ const router = useRouter();
 const { fetchMap } = useMaps();
 const { connect, socket } = useSocket();
 const roomStore = useRoomStore();
-const { playShot, playReload, playWinCt, playWinTer } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let engine: GameEngine | null = null;
@@ -153,6 +153,10 @@ async function init() {
       } else if (data.type === 'roundEnd') {
         if (data.winner === 'ct') playWinCt();
         else if (data.winner === 't') playWinTer();
+      } else if (data.type === 'pickupAmmo' && data.playerId === mySocketId) {
+        playPickupAmmo();
+      } else if (data.type === 'pickupMedkit' && data.playerId === mySocketId) {
+        playPickupMedkit();
       } else if (data.type === 'gameOver' && data.winner && data.players) {
         gameOver.value = { winner: data.winner, players: data.players };
       }

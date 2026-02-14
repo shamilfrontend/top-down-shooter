@@ -488,7 +488,7 @@ export class GameEngine {
       if (!visible) return;
 
       const isCT = p.team === 'ct';
-      const R = PLAYER_RADIUS;
+      const R = PLAYER_RADIUS * 1.3; // визуально на 30% крупнее, физика без изменений
       const a = p.angle;
       const cosA = Math.cos(a);
       const sinA = Math.sin(a);

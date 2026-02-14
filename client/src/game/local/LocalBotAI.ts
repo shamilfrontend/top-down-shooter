@@ -66,6 +66,8 @@ function angleDiff(a: number, b: number): number {
   return d;
 }
 
+export type BotDifficulty = 'easy' | 'medium' | 'hard';
+
 export function computeBotAction(
   botId: string,
   botTeam: 'ct' | 't',
@@ -74,12 +76,13 @@ export function computeBotAction(
   botAngle: number,
   players: PlayerLike[],
   walls: Wall[],
-  tick: number
+  tick: number,
+  difficulty: BotDifficulty = 'medium'
 ): { input: GameInput; angle: number; shoot: boolean } {
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
-  const reactionChance = 0.6;
-  const aimError = 0.15;
-  const moveFreq = 0.5;
+  const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
+  const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
+  const moveFreq = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.5 : 0.85;
 
   let target: PlayerLike | null = null;
   let minDist = Infinity;

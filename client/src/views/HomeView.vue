@@ -20,7 +20,7 @@ function logout() {
         <span v-if="auth.user" class="username">{{ auth.user.username }}</span>
         <router-link to="/lobby" class="btn-cs btn-cs-primary">Лобби</router-link>
         <router-link to="/maps" class="btn-cs">Карты</router-link>
-        <router-link to="/game/dust2" class="btn-cs">Играть (тест)</router-link>
+        <router-link to="/game/dust2" class="btn-cs">Тренировка</router-link>
         <button type="button" class="btn-cs" @click="logout">Выйти</button>
       </div>
     </header>

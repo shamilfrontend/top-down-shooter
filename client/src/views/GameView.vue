@@ -6,14 +6,23 @@ import { useGameAudio } from '@/composables/useGameAudio';
 import { useFullscreen } from '@/composables/useFullscreen';
 import { GameEngine } from '@/game/GameEngine';
 import type { ServerPlayer } from '@/game/GameEngine';
-import { LocalGameSession } from '@/game/LocalGameSession';
+import { LocalGameSession, type BotDifficulty } from '@/game/LocalGameSession';
 import GameHUD from '@/components/GameHUD.vue';
 import ShopModal from '@/components/ShopModal.vue';
 
+const BOT_DIFFICULTY_KEY = 'trainingBotDifficulty';
+
+function loadBotDifficulty(): BotDifficulty {
+  const saved = localStorage.getItem(BOT_DIFFICULTY_KEY);
+  return saved === 'easy' || saved === 'medium' || saved === 'hard' ? saved : 'medium';
+}
+
 const route = useRoute();
 const router = useRouter();
+
+const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
 const { fetchMap } = useMaps();
-const { playShot, playReload, playWinCt, playWinTer } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let engine: GameEngine | null = null;
@@ -47,6 +56,15 @@ const sortedScoreboardPlayers = computed(() => {
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
+function applyBotDifficulty() {
+  localStorage.setItem(BOT_DIFFICULTY_KEY, botDifficulty.value);
+  engine?.stop();
+  localSession?.stop();
+  engine = null;
+  localSession = null;
+  init();
+}
+
 function onScoreboardKey(e: KeyboardEvent) {
   if (e.code === 'Tab') {
     e.preventDefault();
@@ -63,7 +81,11 @@ async function init() {
 
   try {
     const map = await fetchMap(mapId);
-    localSession = new LocalGameSession(map);
+    localSession = new LocalGameSession(map, {
+      ctBotCount: 0,
+      tBotCount: 10,
+      botDifficulty: botDifficulty.value,
+    });
     engine = new GameEngine({
       canvas,
       map,
@@ -104,6 +126,10 @@ async function init() {
     localSession.setOnRoundEnd((winner) => {
       if (winner === 'ct') playWinCt();
       else playWinTer();
+    });
+    localSession.setOnPickup((type) => {
+      if (type === 'ammo') playPickupAmmo();
+      else playPickupMedkit();
     });
 
     localSession.start();
@@ -147,7 +173,23 @@ watch(() => route.params.mapId, () => {
 <template>
   <div class="game-view">
     <div class="game-header">
-      <h2>Игра (одиночный режим)</h2>
+      <h2>Тренировка</h2>
+      <div class="bot-difficulty-row">
+        <span class="bot-difficulty-label">Уровень ботов:</span>
+        <label class="bot-difficulty-opt">
+          <input v-model="botDifficulty" type="radio" value="easy" />
+          <span>Лёгкий</span>
+        </label>
+        <label class="bot-difficulty-opt">
+          <input v-model="botDifficulty" type="radio" value="medium" />
+          <span>Средний</span>
+        </label>
+        <label class="bot-difficulty-opt">
+          <input v-model="botDifficulty" type="radio" value="hard" />
+          <span>Сложный</span>
+        </label>
+        <button type="button" class="btn-cs btn-apply" @click="applyBotDifficulty">Применить</button>
+      </div>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
       <div class="game-header-actions">
         <button type="button" class="btn-exit" @click="exitGame">Выйти</button>
@@ -256,6 +298,29 @@ watch(() => route.params.mapId, () => {
 .game-header h2 {
   font-size: 1rem;
   margin-bottom: 0.25rem;
+}
+.bot-difficulty-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.bot-difficulty-label {
+  font-size: 0.9rem;
+  color: var(--cs-text-dim);
+}
+.bot-difficulty-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #ccc;
+}
+.bot-difficulty-opt input { accent-color: var(--cs-orange); }
+.btn-apply {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
 }
 .hint {
   font-size: 0.85rem;

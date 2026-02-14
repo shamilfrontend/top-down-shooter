@@ -5,7 +5,7 @@ import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './Weapons';
 import { raycast } from './Shooting';
-import { createPickups, processPickups, getActivePickups, type PickupItem } from './Pickups';
+import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
 import { computeBotAction, getBotName } from './BotAI';
 
 const TICK_RATE = 20;
@@ -83,6 +83,7 @@ class GameSession {
   private roundWins = { ct: 0, t: 0 };
   private roundPhase: 'playing' | 'ended' = 'playing';
   private roundEndAt = 0;
+  private lastPickupRelocateInterval = -1;
 
   private botDifficulties = new Map<string, 'easy' | 'medium' | 'hard'>();
 
@@ -167,6 +168,7 @@ class GameSession {
 
     this.pickups = createPickups(this.map, { ammo: 5, medkit: 3 });
     this.roundStartTime = Date.now();
+    this.lastPickupRelocateInterval = Math.floor(Date.now() / PICKUP_RELOCATE_MS);
     this.tickInterval = setInterval(() => this.tick(), TICK_MS);
   }
 
@@ -422,12 +424,24 @@ class GameSession {
     }
 
     this.processReloads();
-    processPickups(
+    const taken = processPickups(
       this.pickups,
       Array.from(this.players.values()),
       (w) => WEAPONS[w]?.magazineSize ?? 30,
       now
     );
+    for (const t of taken) {
+      this.io.to(this.roomId).emit('game:event', {
+        type: t.type === 'ammo' ? 'pickupAmmo' : 'pickupMedkit',
+        playerId: t.playerId,
+      });
+    }
+
+    const relocateInterval = Math.floor(now / PICKUP_RELOCATE_MS);
+    if (relocateInterval !== this.lastPickupRelocateInterval) {
+      this.lastPickupRelocateInterval = relocateInterval;
+      relocatePickups(this.pickups, this.map, now);
+    }
 
     for (const p of this.players.values()) {
       if (!p.isAlive) continue;
