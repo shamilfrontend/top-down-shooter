@@ -20,8 +20,8 @@ async function onSubmit(email: string, password: string) {
 
 <template>
   <div class="auth-view">
-    <div class="auth-card">
-      <h1>Вход</h1>
+    <div class="auth-card panel-cs">
+      <h1 class="auth-title">ВХОД</h1>
       <LoginForm ref="formRef" @submit="onSubmit" />
       <p class="auth-link">
         Нет аккаунта?
@@ -39,20 +39,26 @@ async function onSubmit(email: string, password: string) {
   justify-content: center;
 }
 .auth-card {
-  background: #1e1e32;
-  padding: 2rem;
-  border-radius: 12px;
+  padding: 32px;
   text-align: center;
+  border: 1px solid var(--cs-panel-border);
+  min-width: 320px;
 }
-.auth-card h1 {
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
+.auth-title {
+  margin-bottom: 24px;
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  color: var(--cs-orange);
 }
 .auth-link {
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--cs-text-dim);
 }
 .auth-link a {
-  color: #4a90d9;
+  color: var(--cs-orange);
+}
+.auth-link a:hover {
+  color: var(--cs-orange-hover);
 }
 </style>

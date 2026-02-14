@@ -1,3 +1,18 @@
+/* Counter-Strike 1.6 style */
+:root {
+  --cs-bg: #0e0e0e;
+  --cs-bg-secondary: #151515;
+  --cs-panel: #252525;
+  --cs-panel-border: #3a3a3a;
+  --cs-orange: #e8922e;
+  --cs-orange-hover: #f0a040;
+  --cs-orange-dark: #c46d1a;
+  --cs-text: #e0e0e0;
+  --cs-text-dim: #888;
+  --cs-bevel-light: #4a4a4a;
+  --cs-bevel-dark: #1a1a1a;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,8 +20,76 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #1a1a2e;
-  color: #eee;
+  font-family: Tahoma, Arial, Helvetica, sans-serif;
+  background: var(--cs-bg);
+  color: var(--cs-text);
   min-height: 100vh;
+  font-size: 14px;
+}
+
+/* CS 1.6 кнопка: прямоугольная, фаска */
+.btn-cs {
+  display: inline-block;
+  padding: 6px 16px;
+  background: var(--cs-panel);
+  color: var(--cs-text);
+  border: 1px solid var(--cs-bevel-light);
+  border-bottom-color: var(--cs-bevel-dark);
+  border-right-color: var(--cs-bevel-dark);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  text-align: center;
+}
+
+.btn-cs:hover {
+  background: #2a2a2a;
+  color: var(--cs-orange);
+  border-color: var(--cs-orange-dark);
+}
+
+.btn-cs-primary {
+  background: var(--cs-orange-dark);
+  color: #fff;
+  border-color: var(--cs-orange);
+  border-bottom-color: var(--cs-orange-dark);
+  border-right-color: var(--cs-orange-dark);
+}
+
+.btn-cs-primary:hover {
+  background: var(--cs-orange);
+  color: #fff;
+  border-color: var(--cs-orange-hover);
+}
+
+/* Поле ввода CS 1.6 */
+.input-cs {
+  padding: 6px 10px;
+  background: #1a1a1a;
+  border: 1px solid var(--cs-panel-border);
+  color: var(--cs-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.input-cs:focus {
+  outline: none;
+  border-color: var(--cs-orange);
+}
+
+.select-cs {
+  padding: 6px 10px;
+  background: #1a1a1a;
+  border: 1px solid var(--cs-panel-border);
+  color: var(--cs-text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Панель / карточка */
+.panel-cs {
+  background: var(--cs-panel);
+  border: 1px solid var(--cs-panel-border);
 }

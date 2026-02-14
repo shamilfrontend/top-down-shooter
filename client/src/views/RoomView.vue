@@ -72,10 +72,11 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
 <template>
   <div class="room-view">
     <header class="header">
-      <h1>{{ room.currentRoom?.name }}</h1>
+      <div class="header-orange"></div>
+      <h1 class="title">{{ room.currentRoom?.name }}</h1>
       <div class="header-actions">
         <span class="map-badge">{{ room.currentRoom?.map }}</span>
-        <button class="btn-leave" @click="leave">Выйти</button>
+        <button type="button" class="btn-cs" @click="leave">Выйти</button>
       </div>
     </header>
 
@@ -90,7 +91,7 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
           <div
             v-for="p in room.currentRoom?.teams.ct"
             :key="p.socketId"
-            class="player-row"
+            class="player-row panel-cs"
             :class="{ host: p.isHost, ready: p.isReady }"
           >
             <span class="player-name">{{ p.username }}</span>
@@ -103,7 +104,7 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
           <div
             v-for="p in room.currentRoom?.teams.t"
             :key="p.socketId"
-            class="player-row"
+            class="player-row panel-cs"
             :class="{ host: p.isHost, ready: p.isReady }"
           >
             <span class="player-name">{{ p.username }}</span>
@@ -113,7 +114,7 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
         </div>
       </div>
 
-      <div v-if="isHost" class="bots-section">
+      <div v-if="isHost" class="bots-section panel-cs">
         <h4>Боты</h4>
         <label class="bots-toggle">
           <input type="checkbox" :checked="bots.enabled" @change="toggleBots" />
@@ -122,11 +123,11 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
         <div v-if="bots.enabled" class="bots-options">
           <div class="bots-row">
             <span>Количество:</span>
-            <input type="number" min="0" max="8" :value="bots.count" @input="setBotCount(+(($event.target as HTMLInputElement).value) || 0)" />
+            <input type="number" min="0" max="8" class="input-cs" :value="bots.count" @input="setBotCount(+(($event.target as HTMLInputElement).value) || 0)" />
           </div>
           <div class="bots-row">
             <span>Сложность:</span>
-            <select :value="bots.difficulty" @change="setBotDifficulty(($event.target as HTMLSelectElement).value as 'easy'|'medium'|'hard')">
+            <select class="select-cs" :value="bots.difficulty" @change="setBotDifficulty(($event.target as HTMLSelectElement).value as 'easy'|'medium'|'hard')">
               <option value="easy">Лёгкая</option>
               <option value="medium">Средняя</option>
               <option value="hard">Сложная</option>
@@ -136,12 +137,13 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
       </div>
 
       <div class="controls">
-        <button class="btn-ready" @click="toggleReady">
+        <button type="button" class="btn-cs" @click="toggleReady">
           {{ room.currentRoom?.players.find((p) => p.socketId === socket?.id)?.isReady ? 'Отменить готовность' : 'Готов' }}
         </button>
         <button
           v-if="isHost"
-          class="btn-start"
+          type="button"
+          class="btn-cs btn-cs-primary"
           :disabled="!canStart()"
           @click="room.startGame"
         >
@@ -157,44 +159,58 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
   min-height: 100vh;
 }
 .header {
+  position: relative;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background: #1e1e32;
+  padding: 12px 24px;
+  background: var(--cs-bg-secondary);
+  border-bottom: 1px solid var(--cs-panel-border);
+}
+.header-orange {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--cs-orange);
+}
+.title {
+  font-size: 18px;
+  letter-spacing: 0.05em;
+  margin-left: 12px;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .map-badge {
-  color: #888;
-  margin-right: 1rem;
-}
-.btn-leave {
-  padding: 0.5rem 1rem;
-  background: transparent;
-  border: 1px solid #555;
-  border-radius: 6px;
-  color: #eee;
-  cursor: pointer;
+  color: var(--cs-text-dim);
+  font-size: 13px;
 }
 .error-banner {
-  background: #5a2020;
-  color: #ff9999;
-  padding: 0.75rem 1rem;
+  background: #3a1515;
+  color: var(--cs-orange);
+  padding: 8px 16px;
   text-align: center;
+  border-bottom: 1px solid #5a2020;
 }
 .room-content {
-  padding: 2rem;
+  padding: 24px;
   max-width: 800px;
   margin: 0 auto;
 }
 .teams {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-  margin-bottom: 2rem;
+  gap: 24px;
+  margin-bottom: 24px;
 }
 .team h3 {
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
+  margin-bottom: 8px;
+  font-size: 14px;
+  letter-spacing: 0.05em;
 }
 .team-ct h3 {
   color: #6b9bd1;
@@ -203,91 +219,69 @@ function setBotDifficulty(d: 'easy' | 'medium' | 'hard') {
   color: #d4a574;
 }
 .player-row {
-  padding: 0.5rem;
-  background: #252540;
-  border-radius: 6px;
-  margin-bottom: 0.25rem;
+  padding: 8px 12px;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
+  border: 1px solid var(--cs-panel-border);
 }
 .player-row.ready {
   border-left: 3px solid #4caf50;
+  padding-left: 10px;
 }
 .badge {
-  font-size: 0.75rem;
-  color: #888;
+  font-size: 12px;
+  color: var(--cs-text-dim);
 }
 .badge.ready {
   color: #4caf50;
 }
 .bots-section {
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background: #252540;
-  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid var(--cs-panel-border);
 }
 .bots-section h4 {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
+  margin: 0 0 10px;
+  font-size: 13px;
 }
 .bots-toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   cursor: pointer;
+  font-size: 13px;
 }
 .bots-options {
-  margin-top: 0.75rem;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 .bots-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
+  font-size: 13px;
 }
-.bots-row input[type="number"] {
-  width: 4rem;
-  padding: 0.25rem;
-  background: #1e1e32;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: #eee;
-}
-.bots-row select {
-  padding: 0.25rem 0.5rem;
-  background: #1e1e32;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: #eee;
+.bots-row .input-cs {
+  width: 64px;
 }
 
 .controls {
   display: flex;
-  gap: 1rem;
+  gap: 12px;
   justify-content: center;
 }
-.btn-ready,
-.btn-start {
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-ready {
-  background: #333;
-  color: #eee;
-}
-.btn-start {
-  background: #4a90d9;
-  color: #fff;
-}
-.btn-start:disabled {
-  background: #333;
-  color: #666;
+.btn-cs:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+  color: var(--cs-text-dim);
+}
+.btn-cs:disabled:hover {
+  background: var(--cs-panel);
+  color: var(--cs-text-dim);
+  border-color: var(--cs-bevel-light);
 }
 </style>

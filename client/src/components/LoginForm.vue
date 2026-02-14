@@ -28,17 +28,17 @@ defineExpose({ setError: (msg: string) => (error.value = msg) });
       v-model="email"
       type="email"
       placeholder="Email"
-      class="form-input"
+      class="input-cs"
       autocomplete="email"
     />
     <input
       v-model="password"
       type="password"
       placeholder="Пароль"
-      class="form-input"
+      class="input-cs"
       autocomplete="current-password"
     />
-    <button type="submit" class="form-btn">Войти</button>
+    <button type="submit" class="btn-cs btn-cs-primary" style="width: 100%; margin-top: 4px;">Войти</button>
   </form>
 </template>
 
@@ -46,30 +46,15 @@ defineExpose({ setError: (msg: string) => (error.value = msg) });
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 12px;
   max-width: 320px;
+  margin: 0 auto;
 }
 .form-error {
-  color: #ff6b6b;
-  font-size: 0.9rem;
+  color: var(--cs-orange);
+  font-size: 13px;
 }
-.form-input {
-  padding: 0.75rem 1rem;
-  border: 1px solid #333;
-  border-radius: 8px;
-  background: #252540;
-  color: #eee;
-}
-.form-btn {
-  padding: 0.75rem 1rem;
-  background: #4a90d9;
-  border: none;
-  border-radius: 8px;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-.form-btn:hover {
-  background: #5a9fe9;
+.login-form .input-cs {
+  width: 100%;
 }
 </style>

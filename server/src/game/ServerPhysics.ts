@@ -13,7 +13,7 @@ interface MapLike {
 }
 
 const PLAYER_RADIUS = 23;
-const MOVE_SPEED = 1650; // 1500 * 1.1 (+10%)
+const MOVE_SPEED = 2200; // скорость перемещения игрока
 const ACCELERATION = 5000;
 const FRICTION = 0.85;
 const MAX_PHYSICS_DT = 0.008; // суб-шаги для предотвращения прохождения сквозь стены

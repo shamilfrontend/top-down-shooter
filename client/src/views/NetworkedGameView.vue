@@ -160,14 +160,17 @@ watch(() => route.params.roomId, () => {
     <div class="game-header">
       <h2>Сетевая игра</h2>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
-      <button
-        type="button"
-        class="btn-fullscreen"
-        :title="isFullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'"
-        @click="toggleFullscreen"
-      >
-        {{ isFullscreen ? '⊡' : '⊞' }}
-      </button>
+      <div class="game-header-actions">
+        <button type="button" class="btn-exit" @click="exitToLobby">Выйти</button>
+        <button
+          type="button"
+          class="btn-fullscreen"
+          :title="isFullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'"
+          @click="toggleFullscreen"
+        >
+          {{ isFullscreen ? '⊡' : '⊞' }}
+        </button>
+      </div>
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
       <canvas ref="canvasRef" class="game-canvas" />
@@ -222,10 +225,20 @@ watch(() => route.params.roomId, () => {
   padding: 0.75rem 1rem;
   background: #1e1e32;
 }
-.btn-fullscreen {
+.game-header-actions {
   position: absolute;
   top: 0.5rem;
   right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.game-header-actions .btn-exit {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.btn-fullscreen {
   padding: 0.35rem 0.6rem;
   background: #333;
   border: 1px solid #555;

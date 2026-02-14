@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useMaps } from '@/composables/useMaps';
 import { useGameAudio } from '@/composables/useGameAudio';
 import { useFullscreen } from '@/composables/useFullscreen';
@@ -10,6 +10,7 @@ import GameHUD from '@/components/GameHUD.vue';
 import ShopModal from '@/components/ShopModal.vue';
 
 const route = useRoute();
+const router = useRouter();
 const { fetchMap } = useMaps();
 const { playShot, playReload, playWinCt, playWinTer } = useGameAudio();
 
@@ -100,6 +101,10 @@ function buyWeapon(id: string) {
   shopOpen.value = false;
 }
 
+function exitGame() {
+  router.push({ name: 'home' });
+}
+
 onMounted(init);
 
 onUnmounted(() => {
@@ -122,14 +127,17 @@ watch(() => route.params.mapId, () => {
     <div class="game-header">
       <h2>Игра (одиночный режим)</h2>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
-      <button
-        type="button"
-        class="btn-fullscreen"
-        :title="isFullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'"
-        @click="toggleFullscreen"
-      >
-        {{ isFullscreen ? '⊡' : '⊞' }}
-      </button>
+      <div class="game-header-actions">
+        <button type="button" class="btn-exit" @click="exitGame">Выйти</button>
+        <button
+          type="button"
+          class="btn-fullscreen"
+          :title="isFullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'"
+          @click="toggleFullscreen"
+        >
+          {{ isFullscreen ? '⊡' : '⊞' }}
+        </button>
+      </div>
     </div>
     <div ref="canvasWrapRef" class="game-canvas-wrap">
       <canvas ref="canvasRef" class="game-canvas" />
@@ -157,10 +165,28 @@ watch(() => route.params.mapId, () => {
   padding: 0.75rem 1rem;
   background: #1e1e32;
 }
-.btn-fullscreen {
+.game-header-actions {
   position: absolute;
   top: 0.5rem;
   right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.btn-exit {
+  padding: 0.35rem 0.8rem;
+  background: #4a90d9;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-exit:hover {
+  background: #5a9fe9;
+}
+.btn-fullscreen {
   padding: 0.35rem 0.6rem;
   background: #333;
   border: 1px solid #555;

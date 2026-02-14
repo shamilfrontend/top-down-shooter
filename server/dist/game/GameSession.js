@@ -190,7 +190,16 @@ class GameSession {
             }
             this.io.to(this.roomId).emit('game:event', { type: 'roundEnd', winner, roundWins: this.roundWins });
             if (this.roundWins.ct >= this.roundsToWin || this.roundWins.t >= this.roundsToWin) {
-                this.io.to(this.roomId).emit('game:event', { type: 'gameOver', winner });
+                const finalPlayers = Array.from(this.players.values()).map((p) => ({
+                    id: p.socketId,
+                    username: p.username,
+                    team: p.team,
+                    kills: p.kills,
+                    deaths: p.deaths,
+                }));
+                this.io.to(this.roomId).emit('game:event', { type: 'gameOver', winner, players: finalPlayers });
+                this.stop();
+                stopGameSession(this.roomId);
             }
         }
     }
@@ -282,7 +291,7 @@ class GameSession {
                 return;
             p.credits -= def.price;
             p.weapons[0] = weaponId;
-            p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 90 };
+            p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };
             this.saveWeaponAmmo(p);
             p.currentSlot = 0;
             this.applyWeaponSlot(p);

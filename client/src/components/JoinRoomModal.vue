@@ -25,21 +25,19 @@ function handleSubmit() {
 
 <template>
   <div class="modal-overlay" @click.self="emit('close')">
-    <div class="modal">
-      <h3>Войти в {{ roomName }}</h3>
+    <div class="modal panel-cs">
+      <h3 class="modal-title">Войти в {{ roomName }}</h3>
       <form @submit.prevent="handleSubmit" class="join-form">
         <input
           v-if="hasPassword"
           v-model="password"
           type="password"
           placeholder="Пароль"
-          class="form-input"
+          class="input-cs"
         />
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" @click="emit('close')">
-            Отмена
-          </button>
-          <button type="submit" class="btn btn-primary">Войти</button>
+          <button type="button" class="btn-cs" @click="emit('close')">Отмена</button>
+          <button type="submit" class="btn-cs btn-cs-primary">Войти</button>
         </div>
       </form>
     </div>
@@ -50,52 +48,34 @@ function handleSubmit() {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
 }
 .modal {
-  background: #1e1e32;
-  padding: 1.5rem;
-  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid var(--cs-panel-border);
   min-width: 300px;
 }
-.modal h3 {
-  margin-bottom: 1rem;
-  font-size: 1.2rem;
+.modal-title {
+  margin-bottom: 16px;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  color: var(--cs-orange);
 }
 .join-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 12px;
 }
-.form-input {
-  padding: 0.75rem 1rem;
-  border: 1px solid #333;
-  border-radius: 8px;
-  background: #252540;
-  color: #eee;
+.join-form .input-cs {
+  width: 100%;
 }
 .form-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
   justify-content: flex-end;
-}
-.btn {
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 500;
-}
-.btn-primary {
-  background: #4a90d9;
-  color: #fff;
-}
-.btn-secondary {
-  background: #333;
-  color: #eee;
 }
 </style>

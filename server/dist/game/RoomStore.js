@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RoomStore = void 0;
 const DEFAULT_MAP = 'dust2';
 const DEFAULT_MAX_PLAYERS = 10;
-const DEFAULT_ROUNDS_TO_WIN = 13;
+const DEFAULT_ROUNDS_TO_WIN = 10;
 const DEFAULT_BOTS = {
     enabled: false,
     difficulty: 'medium',

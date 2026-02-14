@@ -33,6 +33,7 @@ function setupSocketHandlers(io) {
                 password: options.password,
                 map: options.map,
                 maxPlayers: options.maxPlayers,
+                roundsToWin: options.roundsToWin,
                 bots: options.bots,
             });
             socket.join(room.id);
