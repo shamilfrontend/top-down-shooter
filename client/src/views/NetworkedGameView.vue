@@ -16,7 +16,8 @@ const router = useRouter();
 const { fetchMap } = useMaps();
 const { connect, socket } = useSocket();
 const roomStore = useRoomStore();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
+const lastRound = ref<number | null>(null);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let engine: GameEngine | null = null;
@@ -121,13 +122,20 @@ async function init() {
       onHUDUpdate: (s) => { hudState.value = s; },
     });
 
+    function applyRoundSound(round: number | undefined) {
+      if (typeof round !== 'number') return;
+      if (lastRound.value != null && round > lastRound.value) playGo();
+      lastRound.value = round;
+    }
     const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
       scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
+      applyRoundSound(data.round);
     };
     const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
       scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
+      applyRoundSound(data.round);
     };
     const onGameEvent = (data: {
       type: string;
@@ -284,7 +292,7 @@ watch(() => route.params.roomId, () => {
       />
       <div v-if="gameOver" class="game-over-overlay">
         <div class="game-over-card panel-cs">
-          <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'CT' : 'T' }} ПОБЕДИЛИ!</h2>
+          <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'Спецназ одержал победу!' : 'Террористы победили!' }}</h2>
           <div class="stats-table">
             <div class="stats-header">
               <span>Игрок</span>

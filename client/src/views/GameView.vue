@@ -22,7 +22,7 @@ const router = useRouter();
 
 const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
 const { fetchMap } = useMaps();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 let engine: GameEngine | null = null;
@@ -137,6 +137,7 @@ async function init() {
       if (winner === 'ct') playWinCt();
       else playWinTer();
     });
+    localSession.setOnRoundStart(() => playGo());
     localSession.setOnPickup((type) => {
       if (type === 'ammo') playPickupAmmo();
       else if (type === 'medkit' || type === 'armor') playPickupMedkit();

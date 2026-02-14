@@ -15,6 +15,7 @@ export function useGameAudio() {
   const winTer = createAudio('/audio/win-ter.mp3');
   const addAmmo = createAudio('/audio/add-ammunition.mp3');
   const addHp = createAudio('/audio/add-hp.mp3');
+  const go = createAudio('/audio/go.mp3');
 
   function playShot(weapon: string) {
     if (PISTOLS.includes(weapon)) {
@@ -51,5 +52,10 @@ export function useGameAudio() {
     addHp.play().catch(() => {});
   }
 
-  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit };
+  function playGo() {
+    go.currentTime = 0;
+    go.play().catch(() => {});
+  }
+
+  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo };
 }

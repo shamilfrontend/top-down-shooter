@@ -92,6 +92,7 @@ export class LocalGameSession {
   private onShotTrail?: (x1: number, y1: number, x2: number, y2: number) => void;
   private onShot?: (weapon: string) => void;
   private onRoundEnd?: (winner: 'ct' | 't') => void;
+  private onRoundStart?: () => void;
   private onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void;
   private onKill?: (killerName: string, victimName: string) => void;
 
@@ -209,6 +210,7 @@ export class LocalGameSession {
     this.roundStartTime = Date.now();
     this.lastPickupRelocateInterval = Math.floor(Date.now() / PICKUP_RELOCATE_MS);
     this.tickInterval = setInterval(() => this.tick(), TICK_MS);
+    this.onRoundStart?.();
   }
 
   setOnState(cb: (state: LocalGameState) => void) {
@@ -225,6 +227,10 @@ export class LocalGameSession {
 
   setOnRoundEnd(cb: (winner: 'ct' | 't') => void) {
     this.onRoundEnd = cb;
+  }
+
+  setOnRoundStart(cb: () => void) {
+    this.onRoundStart = cb;
   }
 
   setOnPickup(cb: (type: 'ammo' | 'medkit' | 'armor') => void) {
@@ -383,6 +389,7 @@ export class LocalGameSession {
         this.round++;
         this.roundPhase = 'playing';
         this.roundStartTime = now;
+        this.onRoundStart?.();
         this.respawnAll();
       }
       return;
