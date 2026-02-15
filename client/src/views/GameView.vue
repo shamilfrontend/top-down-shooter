@@ -15,6 +15,7 @@ const BOT_COUNT_KEY = 'trainingBotCount';
 const TRAINING_MAP_KEY = 'trainingMapId';
 const BOT_COUNT_MIN = 0;
 const BOT_COUNT_MAX = 20;
+const TRAINING_ROUNDS_TO_WIN = 13;
 
 function loadBotDifficulty(): BotDifficulty {
   const saved = localStorage.getItem(BOT_DIFFICULTY_KEY);
@@ -86,6 +87,13 @@ const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX)
 const showHitMarker = ref(false);
 const showKillConfirm = ref(false);
 const roundEndTint = ref<{ winner: 'ct' | 't' } | null>(null);
+const gameOver = ref<{ winner: 'ct' | 't'; players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }> } | null>(null);
+const sortedGameOverPlayers = computed(() => {
+  if (!gameOver.value) return [];
+  return [...gameOver.value.players].sort((a, b) =>
+    a.team !== b.team ? (a.team === 'ct' ? -1 : 1) : b.kills - a.kills
+  );
+});
 
 const scoreboardOpen = ref(false);
 const pauseOpen = ref(false);
@@ -117,6 +125,7 @@ function onScoreboardKey(e: KeyboardEvent) {
     e.preventDefault();
     scoreboardOpen.value = !scoreboardOpen.value;
   } else if (e.code === 'Escape') {
+    if (gameOver.value) return;
     if (scoreboardOpen.value) {
       scoreboardOpen.value = false;
     } else if (shopOpen.value) {
@@ -133,12 +142,14 @@ async function init() {
   if (!canvas) return;
 
   mapLoadError.value = null;
+  gameOver.value = null;
   try {
     const map = await fetchMap(mapId);
     localSession = new LocalGameSession(map, {
       ctBotCount: 0,
       tBotCount: Math.max(0, Math.min(BOT_COUNT_MAX, botCount.value)),
       botDifficulty: botDifficulty.value,
+      roundsToWin: TRAINING_ROUNDS_TO_WIN,
     });
     engine = new GameEngine({
       canvas,
@@ -160,7 +171,7 @@ async function init() {
       },
       onSwitchWeapon: (slot) => localSession?.switchWeapon('local', slot),
       onOpenShop: () => { shopOpen.value = !shopOpen.value; },
-      onHUDUpdate: (s) => { hudState.value = s; },
+      onHUDUpdate: (s) => { hudState.value = { ...s, roundsToWin: TRAINING_ROUNDS_TO_WIN }; },
     });
 
     localSession.setOnState((state) => {
@@ -168,7 +179,7 @@ async function init() {
       engine?.setServerState(
         state.players,
         state.pickups,
-        { round: state.round, roundTimeLeft: state.roundTimeLeft, roundWins: state.roundWins }
+        { round: state.round, roundTimeLeft: state.roundTimeLeft, roundWins: state.roundWins, roundPhase: state.roundPhase }
       );
     });
 
@@ -199,6 +210,12 @@ async function init() {
       setTimeout(() => { showHitMarker.value = false; }, 250);
       setTimeout(() => { showKillConfirm.value = false; }, 900);
       killFeed.value.push({ killerName, victimName, time: Date.now() });
+    });
+    localSession.setOnGameOver((winner, players) => {
+      gameOver.value = { winner, players };
+      if (winner === 'ct') playWinCt();
+      else playWinTer();
+      engine?.stop();
     });
 
     localSession.start();
@@ -379,11 +396,44 @@ watch(
         <span class="kill-confirm-text">+300</span>
       </div>
       <div v-if="roundEndTint" class="round-end-tint" :class="roundEndTint.winner" aria-hidden="true" />
+      <div v-if="gameOver" class="game-over-overlay">
+        <div class="game-over-card panel-cs">
+          <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'Спецназ одержал победу!' : 'Террористы победили!' }}</h2>
+          <div class="stats-table">
+            <div class="stats-header">
+              <span>Игрок</span>
+              <span>Команда</span>
+              <span>K</span>
+              <span>D</span>
+            </div>
+            <div
+              v-for="p in sortedGameOverPlayers"
+              :key="p.id"
+              class="stats-row"
+              :class="p.team"
+            >
+              <span>{{ p.username }}</span>
+              <span>{{ p.team === 'ct' ? 'CT' : 'T' }}</span>
+              <span>{{ p.kills }}</span>
+              <span>{{ p.deaths }}</span>
+            </div>
+          </div>
+          <div class="game-over-actions">
+            <button type="button" class="btn-cs btn-cs-primary" @click="init()">
+              Новая игра
+            </button>
+            <button type="button" class="btn-cs btn-cs-secondary" @click="exitGame">
+              Выйти
+            </button>
+          </div>
+        </div>
+      </div>
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
         :armor="hudState.armor ?? 0"
+        :round-phase="hudState.roundPhase"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="buyWeapon"
@@ -708,5 +758,59 @@ watch(
   inset: 0;
   width: 100%;
   height: 100%;
+}
+.game-over-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+.game-over-card {
+  padding: 24px 32px;
+  border: 1px solid var(--cs-panel-border, #444);
+  min-width: 320px;
+  text-align: center;
+  font-family: Tahoma, Arial, sans-serif;
+}
+.game-over-title {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  color: var(--cs-orange, #e87d2c);
+}
+.game-over-card .stats-table {
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+.game-over-card .stats-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 40px 40px;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #444;
+  font-size: 0.85rem;
+  color: #888;
+}
+.game-over-card .stats-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 40px 40px;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  font-size: 0.95rem;
+}
+.game-over-card .stats-row.ct { color: #6b9bd1; }
+.game-over-card .stats-row.t { color: #d4a574; }
+.game-over-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.game-over-card .btn-cs-primary,
+.game-over-card .btn-cs-secondary {
+  padding: 8px 24px;
 }
 </style>

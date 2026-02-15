@@ -64,23 +64,26 @@ export type BotDifficulty = 'easy' | 'medium' | 'hard';
 
 const BOT_NAMES = ['Bot Ivan', 'Bot Dmitry', 'Bot Alex', 'Bot Sergei', 'Bot Vlad', 'Bot Oleg', 'Bot Boris', 'Bot Yuri'];
 const AMMO_SEEK_THRESHOLD = 15;
+const HEALTH_SEEK_THRESHOLD = 40;
+const ARMOR_SEEK_THRESHOLD = 50;
 
 export function getBotName(index: number): string {
   return BOT_NAMES[index % BOT_NAMES.length];
 }
 
-function getNearestAmmoPickup(
+function getNearestPickupByType(
   botX: number,
   botY: number,
-  pickups: { x: number; y: number; type: string }[] | undefined
+  pickups: { x: number; y: number; type: string }[] | undefined,
+  type: string
 ): { x: number; y: number } | null {
   if (!pickups?.length) return null;
-  const ammoPickups = pickups.filter((p) => p.type === 'ammo');
-  if (ammoPickups.length === 0) return null;
-  let best = ammoPickups[0];
+  const filtered = pickups.filter((p) => p.type === type);
+  if (filtered.length === 0) return null;
+  let best = filtered[0];
   let bestD = Math.hypot(best.x - botX, best.y - botY);
-  for (let i = 1; i < ammoPickups.length; i++) {
-    const p = ammoPickups[i];
+  for (let i = 1; i < filtered.length; i++) {
+    const p = filtered[i];
     const d = Math.hypot(p.x - botX, p.y - botY);
     if (d < bestD) {
       bestD = d;
@@ -100,8 +103,8 @@ export function computeBotAction(
   map: MapLike,
   difficulty: BotDifficulty,
   tick: number,
-  options?: { pickups?: { x: number; y: number; type: string }[]; ammo?: number; ammoReserve?: number }
-): { input: GameInput; angle: number; shoot: boolean } {
+  options?: { pickups?: { x: number; y: number; type: string }[]; ammo?: number; ammoReserve?: number; health?: number; armor?: number }
+): { input: GameInput; angle: number; shoot: boolean; wantReload: boolean } {
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
   const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
   const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
@@ -110,7 +113,11 @@ export function computeBotAction(
 
   const totalAmmo = (options?.ammo ?? 999) + (options?.ammoReserve ?? 999);
   const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
-  const ammoPickup = needsAmmo ? getNearestAmmoPickup(botX, botY, options?.pickups) : null;
+  const needsHealth = (options?.health ?? 100) <= HEALTH_SEEK_THRESHOLD;
+  const needsArmor = (options?.armor ?? 100) < ARMOR_SEEK_THRESHOLD;
+  const ammoPickup = needsAmmo ? getNearestPickupByType(botX, botY, options?.pickups, 'ammo') : null;
+  const medkitPickup = needsHealth ? getNearestPickupByType(botX, botY, options?.pickups, 'medkit') : null;
+  const armorPickup = needsArmor ? getNearestPickupByType(botX, botY, options?.pickups, 'armor') : null;
 
   let target: PlayerLike | null = null;
   let minDist = Infinity;
@@ -125,9 +132,10 @@ export function computeBotAction(
   let huntTargetX = botX;
   let huntTargetY = botY;
   let hasHuntTarget = false;
-  if (ammoPickup) {
-    huntTargetX = ammoPickup.x;
-    huntTargetY = ammoPickup.y;
+  const pickupTarget = medkitPickup ?? ammoPickup ?? armorPickup;
+  if (pickupTarget) {
+    huntTargetX = pickupTarget.x;
+    huntTargetY = pickupTarget.y;
     hasHuntTarget = true;
   } else if (enemies.length > 0) {
     let nearest = enemies[0];
@@ -154,8 +162,11 @@ export function computeBotAction(
   const input: GameInput = { up: false, down: false, left: false, right: false };
   let angle = botAngle;
   let shoot = false;
+  const currentAmmo = options?.ammo ?? 999;
+  const currentReserve = options?.ammoReserve ?? 999;
+  const wantReload = currentAmmo === 0 && currentReserve > 0;
 
-  if (target && Math.random() < reactionChance) {
+  if (target && Math.random() < reactionChance && currentAmmo > 0) {
     const toTarget = Math.atan2(target.y - botY, target.x - botX);
     const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
     angle = toTarget + err;
@@ -181,8 +192,8 @@ export function computeBotAction(
       else if (my < -0.3) input.up = true;
     }
   } else if (hasHuntTarget) {
-    const seekAmmo = !!ammoPickup;
-    const moveChance = seekAmmo ? 0.95 : huntFreq;
+    const seekPickup = !!pickupTarget;
+    const moveChance = seekPickup ? 0.95 : huntFreq;
     if (Math.random() < moveChance) {
       const dx = huntTargetX - botX;
       const dy = huntTargetY - botY;
@@ -207,5 +218,5 @@ export function computeBotAction(
     else input.right = true;
   }
 
-  return { input, angle, shoot };
+  return { input, angle, shoot, wantReload };
 }

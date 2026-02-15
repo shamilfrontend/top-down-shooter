@@ -198,6 +198,11 @@ class GameSession {
                 }));
                 this.io.to(this.roomId).emit('game:event', { type: 'gameOver', winner, players: finalPlayers });
                 this.stop();
+                const room = RoomStore_1.RoomStore.get(this.roomId);
+                if (room) {
+                    room.status = 'waiting';
+                    this.io.to(this.roomId).emit('room:update', RoomStore_1.RoomStore.toState(room));
+                }
                 stopGameSession(this.roomId);
             }
         }
@@ -368,6 +373,7 @@ class GameSession {
         const now = Date.now();
         this.lastTickTime = now;
         this.checkRoundEnd(now);
+        const activePickups = (0, Pickups_1.getActivePickups)(this.pickups, now);
         for (const p of this.players.values()) {
             if (p.socketId.startsWith('bot-') && p.isAlive) {
                 const playersList = Array.from(this.players.values()).map((op) => ({
@@ -377,9 +383,11 @@ class GameSession {
                     y: op.y,
                     isAlive: op.isAlive,
                 }));
-                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount);
+                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount, { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve });
                 p.lastInput = action.input;
                 p.angle = action.angle;
+                if (action.wantReload)
+                    this.reload(p.socketId);
                 if (action.shoot)
                     this.shoot(p.socketId);
             }

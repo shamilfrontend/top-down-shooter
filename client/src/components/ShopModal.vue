@@ -7,11 +7,15 @@ const props = withDefaults(
     credits: number;
     weapons: [string | null, string];
     armor?: number;
+    /** Покупка только при 'ended'. Если не передано — считаем что можно покупать. */
+    roundPhase?: 'playing' | 'ended';
     /** Контейнер для телепорта (например, fullscreen-элемент); если не передан — body */
     teleportTo?: HTMLElement | null;
   }>(),
   { teleportTo: null, armor: 0 }
 );
+
+const canBuy = computed(() => props.roundPhase !== 'playing');
 
 const teleportTarget = computed(() => props.teleportTo ?? 'body');
 
@@ -59,6 +63,7 @@ function weaponImageSrc(id: string): string {
           <h3 class="shop-title">МАГАЗИН</h3>
           <span class="credits">{{ credits }} ₽</span>
         </div>
+        <p v-if="!canBuy" class="shop-phase-hint">Покупка только в время закупа</p>
         <div class="shop-items">
           <div
             v-for="item in visibleItems"
@@ -80,10 +85,10 @@ function weaponImageSrc(id: string): string {
             <button
               type="button"
               class="btn-cs btn-cs-primary btn-buy"
-              :disabled="credits < item.price"
+              :disabled="!canBuy || credits < item.price"
               @click="emit('buy', item.id)"
             >
-              {{ credits < item.price ? 'Недостаточно' : 'Купить' }}
+              {{ !canBuy ? 'Время закупа' : credits < item.price ? 'Недостаточно' : 'Купить' }}
             </button>
           </div>
         </div>
@@ -126,6 +131,11 @@ function weaponImageSrc(id: string): string {
   font-weight: 700;
   color: var(--cs-orange);
   font-size: 14px;
+}
+.shop-phase-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #b8860b;
 }
 .shop-items {
   display: flex;

@@ -15,14 +15,20 @@ const joinTarget = ref<{ id: string; name: string; hasPassword: boolean } | null
 
 const ROOM_LIST_REFRESH_MS = 8000;
 
+function onKeydown(e: KeyboardEvent) {
+  if (e.code === 'Escape' && showCreateForm.value) showCreateForm.value = false;
+}
+
 onMounted(() => {
   connect();
   room.fetchRoomList();
   const cleanup = room.setupListeners();
   const refreshInterval = setInterval(() => room.fetchRoomList(), ROOM_LIST_REFRESH_MS);
+  window.addEventListener('keydown', onKeydown);
   onUnmounted(() => {
     cleanup();
     clearInterval(refreshInterval);
+    window.removeEventListener('keydown', onKeydown);
   });
 });
 

@@ -232,6 +232,8 @@ async function init() {
         playPickupMedkit();
       } else if (data.type === 'gameOver' && data.winner && data.players) {
         gameOver.value = { winner: data.winner, players: data.players };
+        if (data.winner === 'ct') playWinCt();
+        else playWinTer();
       }
     };
 
@@ -417,6 +419,7 @@ watch(() => route.params.roomId, () => {
         :credits="hudState.credits"
         :weapons="hudState.weapons"
         :armor="hudState.armor ?? 0"
+        :round-phase="hudState.roundPhase"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="(id) => { socket?.emit('player:buy', id); shopOpen = false; }"

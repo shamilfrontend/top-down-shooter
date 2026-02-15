@@ -45,20 +45,22 @@ export interface BotMapContext {
 }
 
 const AMMO_SEEK_THRESHOLD = 15;
+const HEALTH_SEEK_THRESHOLD = 40;
+const ARMOR_SEEK_THRESHOLD = 50;
 
-/** Ближайший пикап патронов, если боту нужны патроны */
-function getNearestAmmoPickup(
+function getNearestPickupByType(
   botX: number,
   botY: number,
-  pickups: { x: number; y: number; type: string }[] | undefined
+  pickups: { x: number; y: number; type: string }[] | undefined,
+  type: string
 ): { gx: number; gy: number } | null {
   if (!pickups?.length) return null;
-  const ammoPickups = pickups.filter((p) => p.type === 'ammo');
-  if (ammoPickups.length === 0) return null;
-  let best = ammoPickups[0];
+  const filtered = pickups.filter((p) => p.type === type);
+  if (filtered.length === 0) return null;
+  let best = filtered[0];
   let bestD = Math.hypot(best.x - botX, best.y - botY);
-  for (let i = 1; i < ammoPickups.length; i++) {
-    const p = ammoPickups[i];
+  for (let i = 1; i < filtered.length; i++) {
+    const p = filtered[i];
     const d = Math.hypot(p.x - botX, p.y - botY);
     if (d < bestD) {
       bestD = d;
@@ -68,7 +70,7 @@ function getNearestAmmoPickup(
   return { gx: best.x, gy: best.y };
 }
 
-/** Цель для движения, когда враг не виден: патроны / центр карты / зона спавна врагов */
+/** Цель для движения, когда враг не виден: аптечка / патроны / броня / враги / спавн */
 function getHuntGoal(
   botX: number,
   botY: number,
@@ -76,12 +78,18 @@ function getHuntGoal(
   mapContext: BotMapContext | undefined,
   botId: string,
   tick: number,
-  ammoReserve: number
+  ammoReserve: number,
+  health: number,
+  armor: number
 ): { gx: number; gy: number } | null {
-  if (ammoReserve <= AMMO_SEEK_THRESHOLD) {
-    const ammoGoal = getNearestAmmoPickup(botX, botY, mapContext?.pickups);
-    if (ammoGoal) return ammoGoal;
-  }
+  const needsHealth = health <= HEALTH_SEEK_THRESHOLD;
+  const needsAmmo = ammoReserve <= AMMO_SEEK_THRESHOLD;
+  const needsArmor = armor < ARMOR_SEEK_THRESHOLD;
+  const medkitGoal = needsHealth ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null;
+  const ammoGoal = needsAmmo ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'ammo') : null;
+  const armorGoal = needsArmor ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null;
+  const pickupGoal = medkitGoal ?? ammoGoal ?? armorGoal;
+  if (pickupGoal) return pickupGoal;
   if (enemies.length > 0) {
     const nearest = enemies.reduce((a, e) =>
       Math.hypot(e.x - botX, e.y - botY) < Math.hypot(a.x - botX, a.y - botY) ? e : a
@@ -142,7 +150,9 @@ export function computeBotAction(
   difficulty: BotDifficulty = 'medium',
   mapContext?: BotMapContext,
   ammo = 999,
-  ammoReserve = 999
+  ammoReserve = 999,
+  health = 100,
+  armor = 100
 ): { input: GameInput; angle: number; shoot: boolean; wantReload: boolean } {
   const totalAmmo = ammo + ammoReserve;
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
@@ -169,9 +179,10 @@ export function computeBotAction(
   let shoot = false;
   let wantReload = false;
 
-  // Приоритет 1: если совсем нет патронов — искать пикап с патронами
   const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
-  const ammoGoal = needsAmmo ? getNearestAmmoPickup(botX, botY, mapContext?.pickups) : null;
+  const ammoGoal = needsAmmo ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'ammo') : null;
+  const pickupGoal = ammoGoal ?? (health <= HEALTH_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null)
+    ?? (armor < ARMOR_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null);
 
   if (totalAmmo === 0 && ammoGoal) {
     const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
@@ -217,13 +228,13 @@ export function computeBotAction(
       else if (my < -0.3) input.up = true;
     }
   } else {
-    // Нет видимой цели или шанс не сработал — патруль / поиск патронов (с обходом стен)
-    if (ammoGoal) {
-      const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
+    // Нет видимой цели — патруль / поиск пикапов (с обходом стен)
+    if (pickupGoal) {
+      const moveTo = getMoveTarget(botX, botY, pickupGoal.gx, pickupGoal.gy, walls);
       applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
       angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
     } else {
-      const goal = getHuntGoal(botX, botY, enemies, mapContext, botId, tick, totalAmmo);
+      const goal = getHuntGoal(botX, botY, enemies, mapContext, botId, tick, totalAmmo, health, armor);
       if (goal && Math.random() < huntChance) {
         const moveTo = getMoveTarget(botX, botY, goal.gx, goal.gy, walls);
         applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);

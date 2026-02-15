@@ -218,6 +218,20 @@ class GameSession {
     p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
   }
 
+  /** При смерти у игрока остаётся только пистолет. */
+  private stripDeadPlayerToPistol(p: GamePlayer) {
+    const pistol = START_WEAPONS[p.team];
+    const def = WEAPONS[pistol];
+    if (!def) return;
+    p.weapons = [null, pistol];
+    p.currentSlot = 1;
+    p.weapon = pistol;
+    p.weaponAmmo = { [pistol]: { ammo: def.magazineSize, reserve: pistol === 'usp' ? 24 : 90 } };
+    p.ammo = def.magazineSize;
+    p.ammoReserve = pistol === 'usp' ? 24 : 90;
+    p.reloadEndTime = 0;
+  }
+
   private checkRoundEnd(now: number): void {
     if (this.roundPhase === 'ended') {
       if (now >= this.roundEndAt) {
@@ -344,6 +358,7 @@ class GameSession {
         if (target.health <= 0) {
           target.isAlive = false;
           target.deaths++;
+          this.stripDeadPlayerToPistol(target);
           p.kills++;
           p.credits += CREDITS_KILL;
           this.io.to(this.roomId).emit('game:event', {
@@ -377,6 +392,7 @@ class GameSession {
   buyWeapon(socketId: string, weaponId: string): void {
     const p = this.players.get(socketId);
     if (!p || !p.isAlive) return;
+    if (this.roundPhase !== 'ended') return; // покупка только в время закупа
 
     if (weaponId === 'armor') {
       const cur = p.armor ?? 0;
@@ -461,10 +477,11 @@ class GameSession {
           this.map,
           this.botDifficulties.get(p.socketId) ?? 'medium',
           this.tickCount,
-          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve }
+          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor }
         );
         p.lastInput = action.input;
         p.angle = action.angle;
+        if (action.wantReload) this.reload(p.socketId);
         if (action.shoot) this.shoot(p.socketId);
       }
     }

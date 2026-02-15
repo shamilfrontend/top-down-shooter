@@ -52,4 +52,4 @@ top-down-cs/
 - `player:buy` — клиент→сервер (id оружия или 'armor')
 - `game:state` — сервер→клиент (полное состояние при старте)
 - `game:update` — сервер→клиент (обновления каждые 50ms)
-- `game:event` — сервер→клиент (kill, reloadStart, roundEnd и др.)
+- `game:event` — сервер→клиент: shot, hit, kill, reloadStart, roundEnd, roundStart, gameOver, pickupAmmo, pickupMedkit, pickupArmor

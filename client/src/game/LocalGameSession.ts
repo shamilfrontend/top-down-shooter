@@ -16,6 +16,8 @@ export interface LocalGameSessionOptions {
   ctBotCount?: number;
   tBotCount?: number;
   botDifficulty?: BotDifficulty;
+  /** До скольки побед играть (матч завершается). Не задано — бесконечные раунды. */
+  roundsToWin?: number;
 }
 
 /** По умолчанию: 0 CT (без союзников) + 10 T = 10 ботов */
@@ -97,6 +99,7 @@ export class LocalGameSession {
   private onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void;
   private onKill?: (killerName: string, victimName: string) => void;
   private onHit?: (x: number, y: number, damage: number) => void;
+  private onGameOver?: (winner: 'ct' | 't', players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>) => void;
 
   constructor(map: MapConfig, options?: LocalGameSessionOptions) {
     this.map = map;
@@ -247,6 +250,10 @@ export class LocalGameSession {
     this.onHit = cb;
   }
 
+  setOnGameOver(cb: (winner: 'ct' | 't', players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>) => void) {
+    this.onGameOver = cb;
+  }
+
   setInput(id: string, input: InputState) {
     const p = this.players.get(id);
     if (p) p.lastInput = input;
@@ -308,6 +315,7 @@ export class LocalGameSession {
         if (target.health <= 0) {
           target.isAlive = false;
           target.deaths++;
+          this.stripDeadPlayerToPistol(target);
           p.kills++;
           p.credits += CREDITS_KILL;
           this.onKill?.(p.username, target.username);
@@ -326,6 +334,20 @@ export class LocalGameSession {
     if (Date.now() < p.reloadEndTime) return false;
     this.startReload(p);
     return true;
+  }
+
+  /** При смерти у игрока остаётся только пистолет. */
+  private stripDeadPlayerToPistol(p: LocalPlayer) {
+    const pistol = START_WEAPONS[p.team];
+    const def = WEAPONS[pistol];
+    if (!def) return;
+    p.weapons = [null, pistol];
+    p.currentSlot = 1;
+    p.weapon = pistol;
+    p.weaponAmmo = { [pistol]: { ammo: def.magazineSize, reserve: pistol === 'usp' ? 24 : 90 } };
+    p.ammo = def.magazineSize;
+    p.ammoReserve = pistol === 'usp' ? 24 : 90;
+    p.reloadEndTime = 0;
   }
 
   private startReload(p: LocalPlayer) {
@@ -352,6 +374,7 @@ export class LocalGameSession {
   buyWeapon(id: string, weaponId: string): void {
     const p = this.players.get(id);
     if (!p || !p.isAlive) return;
+    if (this.roundPhase !== 'ended') return; // покупка только в время закупа
 
     if (weaponId === 'armor') {
       const cur = p.armor;
@@ -441,6 +464,18 @@ export class LocalGameSession {
       for (const pl of this.players.values()) {
         pl.credits += pl.team === winner ? CREDITS_ROUND_WIN : CREDITS_ROUND_LOSS;
       }
+      const roundsToWin = this.options.roundsToWin;
+      if (roundsToWin != null && (this.roundWins.ct >= roundsToWin || this.roundWins.t >= roundsToWin)) {
+        const finalPlayers = Array.from(this.players.values()).map((p) => ({
+          id: p.id,
+          username: p.username,
+          team: p.team,
+          kills: p.kills,
+          deaths: p.deaths,
+        }));
+        this.onGameOver?.(winner, finalPlayers);
+        this.stop();
+      }
     }
   }
 
@@ -483,7 +518,7 @@ export class LocalGameSession {
           enemySpawnPoints: (p.team === 'ct' ? this.map.spawnPoints.t : this.map.spawnPoints.ct).map((s) => ({ x: s.x + 15, y: s.y + 15 })),
           pickups: getActivePickups(this.pickups, now).map((pu) => ({ x: pu.x, y: pu.y, type: pu.type })),
         };
-        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve);
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve, p.health, p.armor ?? 0);
         p.lastInput = action.input;
         p.angle = action.angle;
         if (action.shoot) this.shoot(p.id);

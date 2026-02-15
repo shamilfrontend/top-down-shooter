@@ -67,6 +67,7 @@ class RoomStoreClass {
             playerCount: this.countPlayersInRoom(r),
             hasPassword: !!r.password,
             status: r.status,
+            roundsToWin: r.roundsToWin,
         }));
     }
     countPlayersInRoom(room) {

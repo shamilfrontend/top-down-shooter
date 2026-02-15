@@ -99,9 +99,10 @@ const weaponIconWidth: Record<string, number> = {
   awp: 32,
 };
 
+// 1 — основное (слот 0), 2 — пистолет (слот 1)
 const slots = [
-  { key: 1, label: '1', weapon: props.weapons?.[1] ?? 'usp' },
-  { key: 0, label: '2', weapon: props.weapons?.[0] ?? null },
+  { key: 0, label: '1', weapon: props.weapons?.[0] ?? null },
+  { key: 1, label: '2', weapon: props.weapons?.[1] ?? 'usp' },
 ];
 
 function getSlotWeapon(key: number): string | null {

@@ -166,16 +166,28 @@ export class GameEngine {
           this.input.right = true;
           break;
         case 'KeyR':
-          if (!isRepeat) this.onReload?.();
+          if (!isRepeat) {
+            e.preventDefault();
+            this.onReload?.();
+          }
           break;
         case 'KeyB':
-          if (!isRepeat) this.onOpenShop?.();
+          if (!isRepeat) {
+            e.preventDefault();
+            this.onOpenShop?.();
+          }
           break;
         case 'Digit1':
-          if (!isRepeat) this.onSwitchWeapon?.(1);
+          if (!isRepeat) {
+            e.preventDefault();
+            this.onSwitchWeapon?.(0); // 1 — основное оружие (слот 0)
+          }
           break;
         case 'Digit2':
-          if (!isRepeat) this.onSwitchWeapon?.(0);
+          if (!isRepeat) {
+            e.preventDefault();
+            this.onSwitchWeapon?.(1); // 2 — пистолет (слот 1)
+          }
           break;
       }
     };

@@ -40,15 +40,37 @@ function angleDiff(a, b) {
     return d;
 }
 const BOT_NAMES = ['Bot Ivan', 'Bot Dmitry', 'Bot Alex', 'Bot Sergei', 'Bot Vlad', 'Bot Oleg', 'Bot Boris', 'Bot Yuri'];
+const AMMO_SEEK_THRESHOLD = 15;
 function getBotName(index) {
     return BOT_NAMES[index % BOT_NAMES.length];
 }
-function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, difficulty, tick) {
+function getNearestAmmoPickup(botX, botY, pickups) {
+    if (!pickups?.length)
+        return null;
+    const ammoPickups = pickups.filter((p) => p.type === 'ammo');
+    if (ammoPickups.length === 0)
+        return null;
+    let best = ammoPickups[0];
+    let bestD = Math.hypot(best.x - botX, best.y - botY);
+    for (let i = 1; i < ammoPickups.length; i++) {
+        const p = ammoPickups[i];
+        const d = Math.hypot(p.x - botX, p.y - botY);
+        if (d < bestD) {
+            bestD = d;
+            best = p;
+        }
+    }
+    return { x: best.x, y: best.y };
+}
+function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, difficulty, tick, options) {
     const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
     const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
     const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
     const moveTowardsTargetFreq = difficulty === 'easy' ? 0.6 : difficulty === 'medium' ? 0.85 : 0.95;
     const huntFreq = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.7 : 0.9;
+    const totalAmmo = (options?.ammo ?? 999) + (options?.ammoReserve ?? 999);
+    const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
+    const ammoPickup = needsAmmo ? getNearestAmmoPickup(botX, botY, options?.pickups) : null;
     let target = null;
     let minDist = Infinity;
     for (const e of enemies) {
@@ -61,7 +83,12 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
     let huntTargetX = botX;
     let huntTargetY = botY;
     let hasHuntTarget = false;
-    if (enemies.length > 0) {
+    if (ammoPickup) {
+        huntTargetX = ammoPickup.x;
+        huntTargetY = ammoPickup.y;
+        hasHuntTarget = true;
+    }
+    else if (enemies.length > 0) {
         let nearest = enemies[0];
         let nearestD = Math.hypot(nearest.x - botX, nearest.y - botY);
         for (const e of enemies) {
@@ -86,7 +113,10 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
     const input = { up: false, down: false, left: false, right: false };
     let angle = botAngle;
     let shoot = false;
-    if (target && Math.random() < reactionChance) {
+    const currentAmmo = options?.ammo ?? 999;
+    const currentReserve = options?.ammoReserve ?? 999;
+    const wantReload = currentAmmo === 0 && currentReserve > 0;
+    if (target && Math.random() < reactionChance && currentAmmo > 0) {
         const toTarget = Math.atan2(target.y - botY, target.x - botX);
         const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
         angle = toTarget + err;
@@ -120,26 +150,30 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
                 input.up = true;
         }
     }
-    else if (hasHuntTarget && Math.random() < huntFreq) {
-        const dx = huntTargetX - botX;
-        const dy = huntTargetY - botY;
-        const dist = Math.hypot(dx, dy);
-        if (dist > 80) {
-            const moveAngle = Math.atan2(dy, dx);
-            const mx = Math.cos(moveAngle);
-            const my = Math.sin(moveAngle);
-            if (mx > 0.25)
-                input.right = true;
-            else if (mx < -0.25)
-                input.left = true;
-            if (my > 0.25)
-                input.down = true;
-            else if (my < -0.25)
-                input.up = true;
-            angle = moveAngle;
+    else if (hasHuntTarget) {
+        const seekAmmo = !!ammoPickup;
+        const moveChance = seekAmmo ? 0.95 : huntFreq;
+        if (Math.random() < moveChance) {
+            const dx = huntTargetX - botX;
+            const dy = huntTargetY - botY;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 50) {
+                const moveAngle = Math.atan2(dy, dx);
+                const mx = Math.cos(moveAngle);
+                const my = Math.sin(moveAngle);
+                if (mx > 0.25)
+                    input.right = true;
+                else if (mx < -0.25)
+                    input.left = true;
+                if (my > 0.25)
+                    input.down = true;
+                else if (my < -0.25)
+                    input.up = true;
+                angle = moveAngle;
+            }
         }
     }
-    else if (tick % 40 < 20 && Math.random() < 0.15) {
+    if (!input.up && !input.down && !input.left && !input.right && tick % 40 < 20 && Math.random() < 0.15) {
         const dir = Math.floor(Math.random() * 4);
         if (dir === 0)
             input.up = true;
@@ -150,5 +184,5 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
         else
             input.right = true;
     }
-    return { input, angle, shoot };
+    return { input, angle, shoot, wantReload };
 }
