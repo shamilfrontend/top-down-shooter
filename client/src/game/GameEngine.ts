@@ -188,12 +188,18 @@ export class GameEngine {
       this.mouseX = e.clientX - rect.left;
       this.mouseY = e.clientY - rect.top;
     };
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, this.scale * factor));
+    };
 
     window.addEventListener('keydown', keydown);
     window.addEventListener('keyup', keyup);
     this.canvas.addEventListener('mousemove', mousemove);
     this.canvas.addEventListener('mousedown', mousedown);
     window.addEventListener('mouseup', mouseup);
+    this.canvas.addEventListener('wheel', wheel, { passive: false });
 
     this.cleanupInput = () => {
       window.removeEventListener('keydown', keydown);
@@ -201,6 +207,7 @@ export class GameEngine {
       this.canvas.removeEventListener('mousemove', mousemove);
       this.canvas.removeEventListener('mousedown', mousedown);
       window.removeEventListener('mouseup', mouseup);
+      this.canvas.removeEventListener('wheel', wheel);
     };
   }
 

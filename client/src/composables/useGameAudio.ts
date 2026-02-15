@@ -1,5 +1,8 @@
+import { ref } from 'vue';
+
 const PISTOLS = ['usp'];
 const MACHINE_GUNS = ['ak47', 'm4'];
+const MUTED_KEY = 'gameAudioMuted';
 
 function createAudio(src: string): HTMLAudioElement {
   const a = new Audio(src);
@@ -7,16 +10,44 @@ function createAudio(src: string): HTMLAudioElement {
   return a;
 }
 
+const allAudio: HTMLAudioElement[] = [];
+let audioReady = false;
+
+const isMuted = ref(localStorage.getItem(MUTED_KEY) === '1');
+function applyMute() {
+  const v = isMuted.value ? 0 : 1;
+  allAudio.forEach((a) => { a.volume = v; });
+  localStorage.setItem(MUTED_KEY, isMuted.value ? '1' : '0');
+}
+function toggleMute() {
+  isMuted.value = !isMuted.value;
+  applyMute();
+}
+
+function ensureAudio() {
+  if (audioReady) return;
+  audioReady = true;
+  const list = [
+    '/audio/shot-gun.mp3',
+    '/audio/shot-machine-gun.mp3',
+    '/audio/reloading.mp3',
+    '/audio/win-ct.mp3',
+    '/audio/win-ter.mp3',
+    '/audio/add-ammunition.mp3',
+    '/audio/add-hp.mp3',
+    '/audio/go.mp3',
+    '/audio/go2.mp3',
+  ];
+  list.forEach((src) => {
+    const a = createAudio(src);
+    allAudio.push(a);
+  });
+  applyMute(); // применить сохранённый mute при первой инициализации
+}
+
 export function useGameAudio() {
-  const shotGun = createAudio('/audio/shot-gun.mp3');
-  const shotMachineGun = createAudio('/audio/shot-machine-gun.mp3');
-  const reloading = createAudio('/audio/reloading.mp3');
-  const winCt = createAudio('/audio/win-ct.mp3');
-  const winTer = createAudio('/audio/win-ter.mp3');
-  const addAmmo = createAudio('/audio/add-ammunition.mp3');
-  const addHp = createAudio('/audio/add-hp.mp3');
-  const go = createAudio('/audio/go.mp3');
-  const go2 = createAudio('/audio/go2.mp3');
+  ensureAudio();
+  const [shotGun, shotMachineGun, reloading, winCt, winTer, addAmmo, addHp, go, go2] = allAudio;
   let goRoundIndex = 0;
 
   function playShot(weapon: string) {
@@ -62,5 +93,5 @@ export function useGameAudio() {
     audio.play().catch(() => {});
   }
 
-  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo };
+  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute };
 }

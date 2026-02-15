@@ -14,9 +14,9 @@ import type { ServerPlayer } from '@/game/GameEngine';
 const route = useRoute();
 const router = useRouter();
 const { fetchMap } = useMaps();
-const { connect, socket } = useSocket();
+const { connect, socket, pingMs, isConnected } = useSocket();
 const roomStore = useRoomStore();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute } = useGameAudio();
 const lastRound = ref<number | null>(null);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -56,6 +56,7 @@ watch(
 );
 
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
+const canvasHovered = ref(false);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
 const roomId = ref<string | null>(null);
@@ -74,6 +75,7 @@ const KILL_FEED_MAX = 6;
 const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
 
 const scoreboardOpen = ref(false);
+const pauseOpen = ref(false);
 const scoreboardPlayers = ref<ServerPlayer[]>([]);
 const sortedScoreboardPlayers = computed(() => {
   const list = [...scoreboardPlayers.value];
@@ -87,6 +89,8 @@ const sortedGameOverPlayers = computed(() => {
     return b.kills - a.kills;
   });
 });
+
+const roundStartOverlay = ref<{ round: number } | null>(null);
 
 function exitToLobby() {
   roomStore.leaveRoom();
@@ -157,6 +161,7 @@ async function init() {
       playerId?: string;
       weapon?: string;
       winner?: 'ct' | 't';
+      round?: number;
       players?: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>;
       trail?: { x1: number; y1: number; x2: number; y2: number };
       killerName?: string;
@@ -176,6 +181,9 @@ async function init() {
       } else if (data.type === 'roundEnd') {
         if (data.winner === 'ct') playWinCt();
         else if (data.winner === 't') playWinTer();
+      } else if (data.type === 'roundStart' && typeof data.round === 'number') {
+        roundStartOverlay.value = { round: data.round };
+        setTimeout(() => { roundStartOverlay.value = null; }, 2200);
       } else if (data.type === 'pickupAmmo' && data.playerId === mySocketId) {
         playPickupAmmo();
       } else if ((data.type === 'pickupMedkit' || data.type === 'pickupArmor') && data.playerId === mySocketId) {
@@ -209,7 +217,11 @@ function onScoreboardKey(e: KeyboardEvent) {
     e.preventDefault();
     scoreboardOpen.value = !scoreboardOpen.value;
   } else if (e.code === 'Escape') {
-    scoreboardOpen.value = false;
+    if (scoreboardOpen.value) {
+      scoreboardOpen.value = false;
+    } else if (!gameOver.value) {
+      pauseOpen.value = !pauseOpen.value;
+    }
   }
 }
 onMounted(() => {
@@ -238,8 +250,17 @@ watch(() => route.params.roomId, () => {
   <div class="game-view">
     <div class="game-header">
       <h2>Сетевая игра</h2>
-      <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
+      <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин, колёсико — зум, ESC — пауза</p>
       <div class="game-header-actions">
+        <span v-if="pingMs != null" class="ping-display" title="Задержка до сервера">{{ pingMs }} ms</span>
+        <button
+          type="button"
+          class="btn-icon"
+          :title="isMuted ? 'Включить звук' : 'Выключить звук'"
+          @click="toggleMute"
+        >
+          {{ isMuted ? '🔇' : '🔊' }}
+        </button>
         <button type="button" class="btn-cs" @click="exitToLobby">Выйти</button>
         <button
           type="button"
@@ -251,7 +272,13 @@ watch(() => route.params.roomId, () => {
         </button>
       </div>
     </div>
-    <div ref="canvasWrapRef" class="game-canvas-wrap">
+    <div
+      ref="canvasWrapRef"
+      class="game-canvas-wrap"
+      :class="{ 'cursor-none': canvasHovered }"
+      @mouseenter="canvasHovered = true"
+      @mouseleave="canvasHovered = false"
+    >
       <canvas ref="canvasRef" class="game-canvas" />
       <div v-if="killFeedVisible.length" class="kill-feed">
         <div
@@ -297,16 +324,35 @@ watch(() => route.params.roomId, () => {
           <p class="scoreboard-hint">TAB или ESC — закрыть</p>
         </div>
       </div>
-      <GameHUD v-bind="hudState" />
+      <GameHUD v-bind="hudState" :rounds-to-win="roomStore.currentRoom?.roundsToWin" />
       <div v-if="hudState.isAlive === false" class="dead-overlay">
         <span class="dead-text">Вы мертвы</span>
         <span class="dead-hint">Наблюдаете за союзником до следующего раунда</span>
       </div>
       <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
+      <div v-if="roundStartOverlay" class="round-start-overlay" aria-hidden="true">
+        <span class="round-start-text">Раунд {{ roundStartOverlay.round }}</span>
+      </div>
+      <div v-if="roomId && !isConnected" class="reconnect-overlay">
+        <span class="reconnect-text">Соединение потеряно</span>
+        <span class="reconnect-hint">Ожидание переподключения…</span>
+      </div>
+      <div v-if="pauseOpen && !gameOver" class="pause-overlay" @click.self="pauseOpen = false">
+        <div class="pause-panel panel-cs">
+          <h3 class="pause-title">Пауза</h3>
+          <button type="button" class="btn-cs btn-cs-primary pause-btn" @click="pauseOpen = false">
+            Продолжить (ESC)
+          </button>
+          <button type="button" class="btn-cs pause-btn" @click="exitToLobby">
+            Выйти в лобби
+          </button>
+        </div>
+      </div>
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
+        :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="(id) => { socket?.emit('player:buy', id); shopOpen = false; }"
       />
@@ -383,6 +429,69 @@ watch(() => route.params.roomId, () => {
   pointer-events: none;
   z-index: 45;
   background: rgba(180, 0, 0, 0.22);
+}
+.round-start-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 48;
+}
+.round-start-text {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--cs-orange);
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 1px 1px 0 #000;
+  font-family: Tahoma, Arial, sans-serif;
+}
+.reconnect-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 200;
+  pointer-events: none;
+  font-family: Tahoma, Arial, sans-serif;
+}
+.reconnect-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e0a030;
+}
+.reconnect-hint {
+  font-size: 0.9rem;
+  color: var(--cs-text-dim);
+}
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 150;
+}
+.pause-panel {
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.pause-title {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: var(--cs-text);
+}
+.pause-btn {
+  width: 100%;
 }
 .kill-feed {
   position: absolute;
@@ -488,6 +597,23 @@ watch(() => route.params.roomId, () => {
   align-items: center;
   gap: 0.5rem;
 }
+.ping-display {
+  font-size: 12px;
+  color: var(--cs-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.btn-icon {
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-icon:hover {
+  background: #333;
+}
 .game-header-actions .btn-cs {
   padding: 0.35rem 0.8rem;
   font-size: 0.9rem;
@@ -516,6 +642,9 @@ watch(() => route.params.roomId, () => {
   flex: 1;
   position: relative;
   min-height: 400px;
+}
+.game-canvas-wrap.cursor-none {
+  cursor: none;
 }
 .game-canvas {
   position: absolute;

@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-const props = defineProps<{
-  show: boolean;
-  credits: number;
-  weapons: [string | null, string];
-}>();
+const props = withDefaults(
+  defineProps<{
+    show: boolean;
+    credits: number;
+    weapons: [string | null, string];
+    /** Контейнер для телепорта (например, fullscreen-элемент); если не передан — body */
+    teleportTo?: HTMLElement | null;
+  }>(),
+  { teleportTo: null }
+);
+
+const teleportTarget = computed(() => props.teleportTo ?? 'body');
 
 const emit = defineEmits<{
   close: [];
@@ -29,7 +36,7 @@ function weaponImageSrc(id: string): string {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport :to="teleportTarget">
     <div v-if="show" class="shop-overlay" @click.self="emit('close')">
       <div class="shop-modal panel-cs">
         <div class="shop-header">

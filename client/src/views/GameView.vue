@@ -34,7 +34,7 @@ const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
 const botCount = ref<number>(loadBotCount());
 const selectedMapId = ref<string>((route.params.mapId as string) || localStorage.getItem(TRAINING_MAP_KEY) || 'dust2');
 const { fetchMap, fetchMapsList, mapsList } = useMaps();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const mapLoadError = ref<string | null>(null);
@@ -90,6 +90,7 @@ const sortedScoreboardPlayers = computed(() => {
 });
 
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
+const canvasHovered = ref(false);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
 function applySettings() {
@@ -261,8 +262,16 @@ watch(
         </select>
         <button type="button" class="btn-cs btn-apply" @click="applySettings">Применить</button>
       </div>
-      <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин</p>
+      <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин, колёсико — зум</p>
       <div class="game-header-actions">
+        <button
+          type="button"
+          class="btn-icon"
+          :title="isMuted ? 'Включить звук' : 'Выключить звук'"
+          @click="toggleMute"
+        >
+          {{ isMuted ? '🔇' : '🔊' }}
+        </button>
         <button type="button" class="btn-exit" @click="exitGame">Выйти</button>
         <button
           type="button"
@@ -274,7 +283,13 @@ watch(
         </button>
       </div>
     </div>
-    <div ref="canvasWrapRef" class="game-canvas-wrap">
+    <div
+      ref="canvasWrapRef"
+      class="game-canvas-wrap"
+      :class="{ 'cursor-none': canvasHovered }"
+      @mouseenter="canvasHovered = true"
+      @mouseleave="canvasHovered = false"
+    >
       <div v-if="mapLoadError" class="map-load-error">{{ mapLoadError }}</div>
       <canvas ref="canvasRef" class="game-canvas" />
       <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
@@ -327,6 +342,7 @@ watch(
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
+        :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="buyWeapon"
       />
@@ -353,6 +369,18 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.btn-icon {
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-icon:hover {
+  background: #333;
 }
 .btn-exit {
   padding: 0.35rem 0.8rem;
@@ -532,6 +560,9 @@ watch(
   flex: 1;
   position: relative;
   min-height: 400px;
+}
+.game-canvas-wrap.cursor-none {
+  cursor: none;
 }
 
 .damage-flash {

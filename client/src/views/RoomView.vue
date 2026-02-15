@@ -95,8 +95,8 @@ function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
       </div>
     </header>
 
-    <div v-if="room.error" class="error-banner">
-      {{ room.error }}
+    <div v-if="room.error" class="error-banner" @click="room.clearError" role="button" tabindex="0">
+      {{ room.error }} ×
     </div>
 
     <main class="room-content">
@@ -262,6 +262,7 @@ function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
   padding: 8px 16px;
   text-align: center;
   border-bottom: 1px solid #5a2020;
+  cursor: pointer;
 }
 .pending-hint {
   color: var(--cs-orange);

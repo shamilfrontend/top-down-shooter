@@ -17,6 +17,7 @@ const props = defineProps<{
   round?: number;
   roundTimeLeft?: number;
   roundPhase?: 'playing' | 'ended';
+  roundsToWin?: number;
 }>();
 
 const weaponNames: Record<string, string> = {
@@ -71,6 +72,7 @@ function isSelected(key: number): boolean {
         <span class="team-ct">{{ scoreCt }}</span>
         <span class="sep">:</span>
         <span class="team-t">{{ scoreT }}</span>
+        <span v-if="roundsToWin != null" class="score-to-win"> (до {{ roundsToWin }})</span>
       </div>
       <div v-if="credits != null" class="credits-bar">
         ${{ credits }}
@@ -194,6 +196,12 @@ function isSelected(key: number): boolean {
 }
 .sep {
   margin: 0 6px;
+  color: var(--cs-text-dim);
+}
+.score-to-win {
+  margin-left: 6px;
+  font-size: 0.85em;
+  font-weight: 500;
   color: var(--cs-text-dim);
 }
 .credits-bar {

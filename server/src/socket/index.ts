@@ -33,6 +33,10 @@ export function setupSocketHandlers(io: Server): void {
     const auth = getAuth(socket);
     const username = auth?.username || `Guest-${socket.id.slice(0, 6)}`;
 
+    socket.on('ping', (payload: { t?: number }) => {
+      socket.emit('pong', { t: payload?.t ?? Date.now() });
+    });
+
     socket.on('room:create', (options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; team?: 'ct' | 't' }) => {
       const room = RoomStore.create(socket.id, auth?.userId, username, {
         name: options.name || 'Комната',
