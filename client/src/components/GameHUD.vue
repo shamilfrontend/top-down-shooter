@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue';
+
 const props = defineProps<{
   health: number;
   armor?: number;
@@ -21,6 +23,23 @@ const weaponNames: Record<string, string> = {
   ak47: 'AK-47',
   m4: 'M4A1',
 };
+
+const currentWeaponImgFailed = ref(false);
+watch(() => props.weapon, () => { currentWeaponImgFailed.value = false; });
+
+function weaponImageSrc(id: string): string {
+  const filename = id === 'usp' ? 'gun' : id;
+  return `/images/weapons/${filename}.png`;
+}
+
+function onWeaponImgError(e: Event) {
+  (e.target as HTMLImageElement).style.display = 'none';
+}
+
+function onCurrentWeaponImgError(e: Event) {
+  (e.target as HTMLImageElement).style.display = 'none';
+  currentWeaponImgFailed.value = true;
+}
 
 // Размер иконки (ширина в px) для визуального отличия
 const weaponIconWidth: Record<string, number> = {
@@ -73,23 +92,43 @@ function isSelected(key: number): boolean {
             :class="{ selected: isSelected(slot.key), empty: !getSlotWeapon(slot.key) }"
           >
             <span class="slot-key">{{ slot.label }}</span>
-            <span
-              v-if="getSlotWeapon(slot.key)"
-              class="slot-icon-bar"
-              :style="{ width: (weaponIconWidth[getSlotWeapon(slot.key)!] ?? 18) + 'px' }"
-            />
+            <template v-if="getSlotWeapon(slot.key)">
+              <span class="slot-icon-wrap">
+                <span
+                  class="slot-icon-bar slot-fallback"
+                  :style="{ width: (weaponIconWidth[getSlotWeapon(slot.key)!] ?? 18) + 'px' }"
+                />
+                <img
+                  :src="weaponImageSrc(getSlotWeapon(slot.key)!)"
+                  :alt="weaponNames[getSlotWeapon(slot.key)!] ?? ''"
+                  class="slot-weapon-img"
+                  @error="onWeaponImgError"
+                >
+              </span>
+            </template>
             <span v-else class="slot-icon-empty">—</span>
           </div>
         </div>
         <div class="weapon-info">
-          <span class="weapon-name">
-            <span
-              class="weapon-icon-bar"
-              :style="{ width: (weaponIconWidth[weapon] ?? 18) + 'px' }"
-            />
-            {{ weaponNames[weapon] ?? weapon }}
-          </span>
-          <span class="ammo">{{ ammo }} / {{ ammoReserve }}</span>
+          <div class="weapon-current-row">
+            <img
+              :src="weaponImageSrc(weapon)"
+              :alt="weaponNames[weapon] ?? ''"
+              class="weapon-current-img"
+              @error="onCurrentWeaponImgError"
+            >
+            <div class="weapon-text">
+              <span class="weapon-name">
+                <span
+                  v-show="currentWeaponImgFailed"
+                  class="weapon-icon-bar weapon-fallback"
+                  :style="{ width: (weaponIconWidth[weapon] ?? 18) + 'px' }"
+                />
+                {{ weaponNames[weapon] ?? weapon }}
+              </span>
+              <span class="ammo">{{ ammo }} / {{ ammoReserve }}</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="hud-right">
@@ -184,19 +223,21 @@ function isSelected(key: number): boolean {
 }
 .weapon-slots {
   display: flex;
-  gap: 4px;
+  gap: 14px;
 }
 .weapon-slot {
-  width: 46px;
-  height: 36px;
+  min-width: 58px;
+  height: 52px;
   background: #0a0a0a;
   border: 1px solid var(--cs-bevel-dark);
   border-top-color: var(--cs-bevel-light);
   border-left-color: var(--cs-bevel-light);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  padding: 0 6px;
   font-size: 11px;
 }
 .weapon-slot.selected {
@@ -207,8 +248,30 @@ function isSelected(key: number): boolean {
   opacity: 0.5;
 }
 .slot-key {
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--cs-text-dim);
+  flex-shrink: 0;
+}
+.slot-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 64px;
+}
+.slot-icon-bar.slot-fallback {
+  position: absolute;
+  display: block;
+  height: 3px;
+  background: var(--cs-orange);
+}
+.slot-weapon-img {
+  position: relative;
+  max-width: 76px;
+  max-height: 44px;
+  object-fit: contain;
 }
 .slot-icon-bar {
   display: block;
@@ -231,9 +294,25 @@ function isSelected(key: number): boolean {
   flex-direction: column;
   gap: 2px;
 }
+.weapon-current-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.weapon-current-img {
+  width: 146px;
+  height: 94px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.weapon-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .weapon-name {
   font-weight: 700;
-  font-size: 17px;
+  font-size: 22px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -241,7 +320,7 @@ function isSelected(key: number): boolean {
   text-shadow: 1px 1px 0 #000;
 }
 .ammo {
-  font-size: 16px;
+  font-size: 21px;
   color: var(--cs-orange);
   font-weight: 600;
 }

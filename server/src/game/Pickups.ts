@@ -87,7 +87,7 @@ export function processPickups(
   players: Array<{ socketId: string; x: number; y: number; health: number; armor?: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
   getMagazineSize: (weaponId: string) => number,
   now: number,
-  getMaxReserve?: (weaponId: string) => number
+  getMaxReserve?: (weaponId: string) => number | undefined
 ): Array<{ playerId: string; type: 'ammo' | 'medkit' | 'armor' }> {
   const taken: Array<{ playerId: string; type: 'ammo' | 'medkit' | 'armor' }> = [];
   for (const p of pickups) {

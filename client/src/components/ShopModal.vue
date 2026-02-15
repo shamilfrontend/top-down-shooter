@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 const props = defineProps<{
   show: boolean;
   credits: number;
@@ -10,10 +12,20 @@ const emit = defineEmits<{
   buy: [weaponId: string];
 }>();
 
-const items = [
+const allItems = [
   { id: 'm4', name: 'M4A1', price: 3500, slot: 0 },
   { id: 'ak47', name: 'AK-47', price: 5000, slot: 0 },
 ];
+
+const visibleItems = computed(() => {
+  const ownedPrimary = props.weapons?.[0] ?? null;
+  return allItems.filter((item) => item.id !== ownedPrimary);
+});
+
+function weaponImageSrc(id: string): string {
+  const filename = id === 'usp' ? 'gun' : id;
+  return `/images/weapons/${filename}.png`;
+}
 </script>
 
 <template>
@@ -26,20 +38,25 @@ const items = [
         </div>
         <div class="shop-items">
           <div
-            v-for="item in items"
+            v-for="item in visibleItems"
             :key="item.id"
             class="shop-item"
-            :class="{ disabled: credits < item.price || weapons[0] }"
+            :class="{ disabled: credits < item.price }"
           >
+            <img
+              :src="weaponImageSrc(item.id)"
+              :alt="item.name"
+              class="shop-item-icon"
+            >
             <div class="item-name">{{ item.name }}</div>
             <div class="item-price">${{ item.price }}</div>
             <button
               type="button"
               class="btn-cs btn-cs-primary btn-buy"
-              :disabled="credits < item.price || !!weapons[0]"
+              :disabled="credits < item.price"
               @click="emit('buy', item.id)"
             >
-              {{ weapons[0] ? 'Куплено' : credits < item.price ? 'Недостаточно' : 'Купить' }}
+              {{ credits < item.price ? 'Недостаточно' : 'Купить' }}
             </button>
           </div>
         </div>
@@ -95,6 +112,12 @@ const items = [
   padding: 10px 12px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--cs-panel-border);
+}
+.shop-item-icon {
+  width: 96px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 .shop-item.disabled {
   opacity: 0.6;

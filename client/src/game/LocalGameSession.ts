@@ -513,7 +513,7 @@ export class LocalGameSession {
         kills: p.kills,
         deaths: p.deaths,
         credits: p.credits,
-        weapons: p.weapons,
+        weapons: [...p.weapons],
         currentSlot: p.currentSlot,
       })),
       pickups: getActivePickups(this.pickups, now),
