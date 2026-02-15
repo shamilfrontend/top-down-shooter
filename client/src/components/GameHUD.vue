@@ -128,7 +128,8 @@ function isSelected(key: number): boolean {
                 />
                 {{ weaponNames[weapon] ?? weapon }}
               </span>
-              <span class="ammo">{{ ammo }} / {{ ammoReserve }}</span>
+              <span class="ammo" :class="{ empty: ammo === 0 }">{{ ammo }} / {{ ammoReserve }}</span>
+              <span v-if="ammo === 0 && ammoReserve > 0" class="ammo-hint">R — перезарядка</span>
             </div>
           </div>
         </div>
@@ -330,6 +331,13 @@ function isSelected(key: number): boolean {
   font-size: 21px;
   color: var(--cs-orange);
   font-weight: 600;
+}
+.ammo.empty {
+  color: #c03030;
+}
+.ammo-hint {
+  font-size: 11px;
+  color: var(--cs-text-dim);
 }
 /* CS 1.6 style — HP/AP в правом нижнем углу */
 .hud-right {
