@@ -52,6 +52,18 @@ export const WEAPONS: Record<string, WeaponDef> = {
     price: 5000,
     maxReserve: 120,
   },
+  awp: {
+    id: 'awp',
+    name: 'AWP',
+    damage: 100,
+    magazineSize: 5,
+    fireRateMs: 1100,
+    reloadTimeMs: 3700,
+    range: 600,
+    spread: 0.001,
+    price: 4750,
+    maxReserve: 30,
+  },
 };
 
 export const START_WEAPONS: Record<'ct' | 't', string> = {

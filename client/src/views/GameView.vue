@@ -51,6 +51,7 @@ const hudState = ref({
   scoreCt: 0,
   scoreT: 0,
   credits: 800,
+  armor: 0,
   weapons: [null, 'usp'] as [string | null, string],
   currentSlot: 1,
   round: 1,
@@ -365,6 +366,7 @@ watch(
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
+        :armor="hudState.armor ?? 0"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="buyWeapon"

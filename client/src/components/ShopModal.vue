@@ -6,27 +6,43 @@ const props = withDefaults(
     show: boolean;
     credits: number;
     weapons: [string | null, string];
+    armor?: number;
     /** Контейнер для телепорта (например, fullscreen-элемент); если не передан — body */
     teleportTo?: HTMLElement | null;
   }>(),
-  { teleportTo: null }
+  { teleportTo: null, armor: 0 }
 );
 
 const teleportTarget = computed(() => props.teleportTo ?? 'body');
 
 const emit = defineEmits<{
   close: [];
-  buy: [weaponId: string];
+  buy: [itemId: string];
 }>();
 
-const allItems = [
-  { id: 'm4', name: 'M4A1', price: 3500, slot: 0 },
-  { id: 'ak47', name: 'AK-47', price: 5000, slot: 0 },
+interface ShopItem {
+  id: string;
+  name: string;
+  price: number;
+  type: 'weapon' | 'armor';
+  slot?: number;
+}
+
+const weaponItems: ShopItem[] = [
+  { id: 'm4', name: 'M4A1', price: 3500, type: 'weapon', slot: 0 },
+  { id: 'ak47', name: 'AK-47', price: 5000, type: 'weapon', slot: 0 },
+  { id: 'awp', name: 'AWP', price: 4750, type: 'weapon', slot: 0 },
 ];
+
+const armorItem: ShopItem = { id: 'armor', name: 'Броня', price: 650, type: 'armor' };
+
+const ARMOR_MAX = 100;
 
 const visibleItems = computed(() => {
   const ownedPrimary = props.weapons?.[0] ?? null;
-  return allItems.filter((item) => item.id !== ownedPrimary);
+  const weapons = weaponItems.filter((item) => item.id !== ownedPrimary);
+  const armorVisible = (props.armor ?? 0) < ARMOR_MAX;
+  return armorVisible ? [armorItem, ...weapons] : weapons;
 });
 
 function weaponImageSrc(id: string): string {
@@ -51,10 +67,14 @@ function weaponImageSrc(id: string): string {
             :class="{ disabled: credits < item.price }"
           >
             <img
+              v-if="item.type === 'weapon'"
               :src="weaponImageSrc(item.id)"
               :alt="item.name"
               class="shop-item-icon"
             >
+            <div v-else class="shop-item-icon shop-item-armor-icon" aria-hidden="true">
+              🛡
+            </div>
             <div class="item-name">{{ item.name }}</div>
             <div class="item-price">${{ item.price }}</div>
             <button
@@ -125,6 +145,14 @@ function weaponImageSrc(id: string): string {
   height: 64px;
   object-fit: contain;
   flex-shrink: 0;
+}
+.shop-item-armor-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
 }
 .shop-item.disabled {
   opacity: 0.6;

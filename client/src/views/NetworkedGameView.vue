@@ -24,6 +24,7 @@ let engine: GameEngine | null = null;
 
 const hudState = ref({
   health: 100,
+  armor: 0,
   weapon: 'usp',
   ammo: 12,
   ammoReserve: 24,
@@ -392,6 +393,7 @@ watch(() => route.params.roomId, () => {
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
+        :armor="hudState.armor ?? 0"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
         @buy="(id) => { socket?.emit('player:buy', id); shopOpen = false; }"

@@ -363,13 +363,27 @@ class GameSession {
     this.applyWeaponSlot(p);
   }
 
+  private static readonly ARMOR_PRICE = 650;
+  private static readonly ARMOR_BUY_AMOUNT = 50;
+  private static readonly ARMOR_MAX = 100;
+
   buyWeapon(socketId: string, weaponId: string): void {
     const p = this.players.get(socketId);
     if (!p || !p.isAlive) return;
+
+    if (weaponId === 'armor') {
+      const cur = p.armor ?? 0;
+      if (cur >= GameSession.ARMOR_MAX || p.credits < GameSession.ARMOR_PRICE) return;
+      p.credits -= GameSession.ARMOR_PRICE;
+      p.armor = Math.min(GameSession.ARMOR_MAX, cur + GameSession.ARMOR_BUY_AMOUNT);
+      return;
+    }
+
     const def = WEAPONS[weaponId];
     if (!def || !def.price) return;
     if (p.credits < def.price) return;
-    if (weaponId === 'ak47' || weaponId === 'm4') {
+    const buyablePrimary = ['ak47', 'm4', 'awp'];
+    if (buyablePrimary.includes(weaponId)) {
       p.credits -= def.price;
       p.weapons[0] = weaponId;
       p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };

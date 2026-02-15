@@ -2,6 +2,7 @@ import { ref } from 'vue';
 
 const PISTOLS = ['usp'];
 const MACHINE_GUNS = ['ak47', 'm4'];
+const SNIPERS = ['awp'];
 const MUTED_KEY = 'gameAudioMuted';
 
 function createAudio(src: string): HTMLAudioElement {
@@ -52,6 +53,9 @@ export function useGameAudio() {
 
   function playShot(weapon: string) {
     if (PISTOLS.includes(weapon)) {
+      shotGun.currentTime = 0;
+      shotGun.play().catch(() => {});
+    } else if (SNIPERS.includes(weapon)) {
       shotGun.currentTime = 0;
       shotGun.play().catch(() => {});
     } else if (MACHINE_GUNS.includes(weapon)) {

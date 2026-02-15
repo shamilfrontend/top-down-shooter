@@ -40,6 +40,7 @@ const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string
   usp: { len: 20, width: 3, color: '#aaa' },
   m4: { len: 28, width: 3.5, color: '#666' },
   ak47: { len: 30, width: 3.5, color: '#8B7355' },
+  awp: { len: 42, width: 4, color: '#4a5568' },
 };
 
 interface BulletTrail {
