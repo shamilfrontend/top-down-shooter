@@ -16,6 +16,7 @@ const props = defineProps<{
   currentSlot?: number;
   round?: number;
   roundTimeLeft?: number;
+  roundPhase?: 'playing' | 'ended';
 }>();
 
 const weaponNames: Record<string, string> = {
@@ -76,7 +77,8 @@ function isSelected(key: number): boolean {
       </div>
       <div v-if="round != null" class="round-info">
         <span>Раунд {{ round }}</span>
-        <span v-if="roundTimeLeft != null" class="round-timer">
+        <span v-if="roundPhase === 'ended'" class="round-phase-buy">Время закупа</span>
+        <span v-else-if="roundTimeLeft != null" class="round-timer">
           {{ Math.floor((roundTimeLeft ?? 0) / 60) }}:{{ String((roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
         </span>
       </div>
@@ -206,6 +208,11 @@ function isSelected(key: number): boolean {
   color: var(--cs-text-dim);
 }
 .round-timer {
+  margin-left: 10px;
+  font-weight: 700;
+  color: var(--cs-orange);
+}
+.round-phase-buy {
   margin-left: 10px;
   font-weight: 700;
   color: var(--cs-orange);

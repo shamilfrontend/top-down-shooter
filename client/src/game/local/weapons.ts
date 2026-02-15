@@ -35,7 +35,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     magazineSize: 30,
     fireRateMs: 90,
     reloadTimeMs: 3100,
-    range: 400,
+    range: 420,
     spread: 0.03,
     price: 3500,
     maxReserve: 120,

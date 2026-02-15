@@ -36,6 +36,8 @@ const hudState = ref({
   currentSlot: 1,
   round: 1,
   roundTimeLeft: 180,
+  roundPhase: 'playing' as 'playing' | 'ended',
+  isAlive: true,
 });
 
 const shopOpen = ref(false);
@@ -119,7 +121,7 @@ async function init() {
       onReload: () => socket.value?.emit('player:reload'),
       onSwitchWeapon: (slot) => socket.value?.emit('player:switchWeapon', slot),
       onOpenShop: () => { shopOpen.value = !shopOpen.value; },
-      onHUDUpdate: (s) => { hudState.value = s; },
+      onHUDUpdate: (s) => { hudState.value = { ...hudState.value, ...s }; },
     });
 
     function applyRoundSound(round: number | undefined) {
@@ -127,14 +129,14 @@ async function init() {
       if (lastRound.value != null && round > lastRound.value) playGo();
       lastRound.value = round;
     }
-    const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
+    const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }) => {
       scoreboardPlayers.value = data.players;
-      engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
+      engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins, roundPhase: data.roundPhase } : undefined);
       applyRoundSound(data.round);
     };
-    const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number } }) => {
+    const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }) => {
       scoreboardPlayers.value = data.players;
-      engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins } : undefined);
+      engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins, roundPhase: data.roundPhase } : undefined);
       applyRoundSound(data.round);
     };
     const onGameEvent = (data: {
@@ -283,6 +285,10 @@ watch(() => route.params.roomId, () => {
         </div>
       </div>
       <GameHUD v-bind="hudState" />
+      <div v-if="hudState.isAlive === false" class="dead-overlay">
+        <span class="dead-text">Вы мертвы</span>
+        <span class="dead-hint">Наблюдаете за союзником до следующего раунда</span>
+      </div>
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
@@ -333,6 +339,29 @@ watch(() => route.params.roomId, () => {
   padding: 0.75rem 1rem;
   background: var(--cs-bg-secondary);
   border-bottom: 1px solid var(--cs-panel-border);
+}
+.dead-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.4);
+  font-family: Tahoma, Arial, sans-serif;
+}
+.dead-text {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #c03030;
+  text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 1px 1px 0 #000;
+}
+.dead-hint {
+  font-size: 0.9rem;
+  color: var(--cs-text-dim);
 }
 .kill-feed {
   position: absolute;

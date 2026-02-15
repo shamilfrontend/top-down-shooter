@@ -54,7 +54,7 @@ export interface GameEngineOptions {
   onInput?: (state: { x: number; y: number; angle: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => void;
   onShoot?: () => void;
   onReload?: () => void;
-  onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
+  onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'playing' | 'ended'; isAlive?: boolean }) => void;
   onSwitchWeapon?: (slot: 0 | 1) => void;
   onOpenShop?: () => void;
   networked?: boolean;
@@ -66,12 +66,12 @@ export class GameEngine {
   private map: MapConfig;
   private mapRenderer: MapRenderer;
   private localPlayerId: string;
-  private onInput?: (state: { x: number; y: number; angle: number }) => void;
+  private onInput?: (state: { x: number; y: number; angle: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => void;
   private onShoot?: () => void;
   private onReload?: () => void;
   private onSwitchWeapon?: (slot: 0 | 1) => void;
   private onOpenShop?: () => void;
-  private onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number; round?: number; roundTimeLeft?: number }) => void;
+  private onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'playing' | 'ended'; isAlive?: boolean }) => void;
 
   private localState: LocalPlayerState;
   private players: Player[] = [];
@@ -213,10 +213,10 @@ export class GameEngine {
   setServerState(
     players: ServerPlayer[],
     pickups?: Array<{ id: string; type: string; x: number; y: number }>,
-    roundInfo?: { round: number; roundTimeLeft: number; roundWins?: { ct: number; t: number } }
+    roundInfo?: { round: number; roundTimeLeft: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }
   ) {
     if (pickups) this.pickups = pickups;
-    if (roundInfo) this.setRoundInfo(roundInfo.round, roundInfo.roundTimeLeft, roundInfo.roundWins);
+    if (roundInfo) this.setRoundInfo(roundInfo.round, roundInfo.roundTimeLeft, roundInfo.roundWins, roundInfo.roundPhase);
     this.lastServerState = players;
     const lerpPlayer = (a: ServerPlayer, b: ServerPlayer, t: number) => {
       let diff = b.angle - a.angle;
@@ -255,7 +255,7 @@ export class GameEngine {
     this.fogOfWar = enabled;
   }
 
-  getLocalPlayerState(): { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string, string]; currentSlot?: number } | null {
+  getLocalPlayerState(): { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; isAlive?: boolean } | null {
     const me = this.lastServerState.find((p) => p.id === this.localPlayerId);
     if (!me) return null;
     return {
@@ -269,18 +269,35 @@ export class GameEngine {
       credits: me.credits,
       weapons: me.weapons,
       currentSlot: me.currentSlot,
+      isAlive: me.isAlive,
     };
   }
 
-  private lastRoundInfo?: { round: number; roundTimeLeft: number };
+  /** Позиция для камеры и тумана: при жизни — игрок, при смерти — первый живой союзник (режим наблюдателя). */
+  private getViewPosition(): { x: number; y: number } {
+    if (!this.networked) return { x: this.localState.x, y: this.localState.y };
+    const me = this.lastServerState.find((p) => p.id === this.localPlayerId);
+    if (me?.isAlive) return { x: this.localState.x, y: this.localState.y };
+    const myTeam = me?.team ?? 'ct';
+    const aliveTeammate = this.lastServerState.find(
+      (p) => p.id !== this.localPlayerId && p.team === myTeam && p.isAlive
+    );
+    if (!aliveTeammate) return { x: this.localState.x, y: this.localState.y };
+    const buf = this.serverPlayers.get(aliveTeammate.id);
+    const interp = buf?.get(80);
+    if (interp) return { x: interp.x, y: interp.y };
+    return { x: aliveTeammate.x, y: aliveTeammate.y };
+  }
+
+  private lastRoundInfo?: { round: number; roundTimeLeft: number; roundPhase?: 'playing' | 'ended' };
   private lastRoundWins?: { ct: number; t: number };
 
-  getRoundInfo(): { round: number; roundTimeLeft: number } | null {
+  getRoundInfo(): { round: number; roundTimeLeft: number; roundPhase?: 'playing' | 'ended' } | null {
     return this.lastRoundInfo ?? null;
   }
 
-  setRoundInfo(round: number, roundTimeLeft: number, roundWins?: { ct: number; t: number }) {
-    this.lastRoundInfo = { round, roundTimeLeft };
+  setRoundInfo(round: number, roundTimeLeft: number, roundWins?: { ct: number; t: number }, roundPhase?: 'playing' | 'ended') {
+    this.lastRoundInfo = { round, roundTimeLeft, roundPhase };
     if (roundWins) this.lastRoundWins = roundWins;
   }
 
@@ -350,8 +367,9 @@ export class GameEngine {
       }
     }
 
-    this.cameraX += (this.localState.x - this.cameraX) * CAMERA_LERP;
-    this.cameraY += (this.localState.y - this.cameraY) * CAMERA_LERP;
+    const view = this.getViewPosition();
+    this.cameraX += (view.x - this.cameraX) * CAMERA_LERP;
+    this.cameraY += (view.y - this.cameraY) * CAMERA_LERP;
     this.mapRenderer.setCamera(this.cameraX, this.cameraY, this.scale);
 
     if (this.networked && this.onHUDUpdate) {
@@ -365,6 +383,8 @@ export class GameEngine {
           scoreT: score.t,
           round: roundInfo?.round,
           roundTimeLeft: roundInfo?.roundTimeLeft,
+          roundPhase: roundInfo?.roundPhase,
+          isAlive: local.isAlive,
         });
       }
     }
@@ -384,8 +404,9 @@ export class GameEngine {
 
   private render() {
     const { ctx, map, mapRenderer, localState, players } = this;
-    const px = localState.x;
-    const py = localState.y;
+    const viewPos = this.getViewPosition();
+    const px = viewPos.x;
+    const py = viewPos.y;
     const scale = this.scale;
 
     mapRenderer.render();
