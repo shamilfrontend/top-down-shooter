@@ -63,9 +63,31 @@ function angleDiff(a: number, b: number): number {
 export type BotDifficulty = 'easy' | 'medium' | 'hard';
 
 const BOT_NAMES = ['Bot Ivan', 'Bot Dmitry', 'Bot Alex', 'Bot Sergei', 'Bot Vlad', 'Bot Oleg', 'Bot Boris', 'Bot Yuri'];
+const AMMO_SEEK_THRESHOLD = 15;
 
 export function getBotName(index: number): string {
   return BOT_NAMES[index % BOT_NAMES.length];
+}
+
+function getNearestAmmoPickup(
+  botX: number,
+  botY: number,
+  pickups: { x: number; y: number; type: string }[] | undefined
+): { x: number; y: number } | null {
+  if (!pickups?.length) return null;
+  const ammoPickups = pickups.filter((p) => p.type === 'ammo');
+  if (ammoPickups.length === 0) return null;
+  let best = ammoPickups[0];
+  let bestD = Math.hypot(best.x - botX, best.y - botY);
+  for (let i = 1; i < ammoPickups.length; i++) {
+    const p = ammoPickups[i];
+    const d = Math.hypot(p.x - botX, p.y - botY);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return { x: best.x, y: best.y };
 }
 
 export function computeBotAction(
@@ -77,13 +99,18 @@ export function computeBotAction(
   players: PlayerLike[],
   map: MapLike,
   difficulty: BotDifficulty,
-  tick: number
+  tick: number,
+  options?: { pickups?: { x: number; y: number; type: string }[]; ammo?: number; ammoReserve?: number }
 ): { input: GameInput; angle: number; shoot: boolean } {
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
   const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
   const aimError = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.15 : 0.05;
   const moveTowardsTargetFreq = difficulty === 'easy' ? 0.6 : difficulty === 'medium' ? 0.85 : 0.95;
   const huntFreq = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.7 : 0.9;
+
+  const totalAmmo = (options?.ammo ?? 999) + (options?.ammoReserve ?? 999);
+  const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
+  const ammoPickup = needsAmmo ? getNearestAmmoPickup(botX, botY, options?.pickups) : null;
 
   let target: PlayerLike | null = null;
   let minDist = Infinity;
@@ -98,7 +125,11 @@ export function computeBotAction(
   let huntTargetX = botX;
   let huntTargetY = botY;
   let hasHuntTarget = false;
-  if (enemies.length > 0) {
+  if (ammoPickup) {
+    huntTargetX = ammoPickup.x;
+    huntTargetY = ammoPickup.y;
+    hasHuntTarget = true;
+  } else if (enemies.length > 0) {
     let nearest = enemies[0];
     let nearestD = Math.hypot(nearest.x - botX, nearest.y - botY);
     for (const e of enemies) {
@@ -149,21 +180,26 @@ export function computeBotAction(
       if (my > 0.3) input.down = true;
       else if (my < -0.3) input.up = true;
     }
-  } else if (hasHuntTarget && Math.random() < huntFreq) {
-    const dx = huntTargetX - botX;
-    const dy = huntTargetY - botY;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 80) {
-      const moveAngle = Math.atan2(dy, dx);
-      const mx = Math.cos(moveAngle);
-      const my = Math.sin(moveAngle);
-      if (mx > 0.25) input.right = true;
-      else if (mx < -0.25) input.left = true;
-      if (my > 0.25) input.down = true;
-      else if (my < -0.25) input.up = true;
-      angle = moveAngle;
+  } else if (hasHuntTarget) {
+    const seekAmmo = !!ammoPickup;
+    const moveChance = seekAmmo ? 0.95 : huntFreq;
+    if (Math.random() < moveChance) {
+      const dx = huntTargetX - botX;
+      const dy = huntTargetY - botY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 50) {
+        const moveAngle = Math.atan2(dy, dx);
+        const mx = Math.cos(moveAngle);
+        const my = Math.sin(moveAngle);
+        if (mx > 0.25) input.right = true;
+        else if (mx < -0.25) input.left = true;
+        if (my > 0.25) input.down = true;
+        else if (my < -0.25) input.up = true;
+        angle = moveAngle;
+      }
     }
-  } else if (tick % 40 < 20 && Math.random() < 0.15) {
+  }
+  if (!input.up && !input.down && !input.left && !input.right && tick % 40 < 20 && Math.random() < 0.15) {
     const dir = Math.floor(Math.random() * 4);
     if (dir === 0) input.up = true;
     else if (dir === 1) input.down = true;

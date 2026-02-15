@@ -25,11 +25,13 @@ onMounted(async () => {
 
 async function selectMap(id: string) {
   try {
+    error.value = null;
     selectedMap.value = await fetchMap(id);
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Ошибка';
   }
 }
+
 </script>
 
 <template>
@@ -54,6 +56,15 @@ async function selectMap(id: string) {
         </div>
       </aside>
       <main class="preview-area">
+        <div v-if="selectedMap" class="preview-header">
+          <h2 class="preview-title">{{ selectedMap.name }}</h2>
+          <router-link
+            :to="{ name: 'game', params: { mapId: selectedMap.id } }"
+            class="btn-cs btn-cs-primary"
+          >
+            Тренировка на этой карте
+          </router-link>
+        </div>
         <MapPreview v-if="selectedMap" :map="selectedMap" />
       </main>
     </div>
@@ -117,6 +128,25 @@ async function selectMap(id: string) {
   flex: 1;
   padding: 12px;
   background: var(--cs-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.preview-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+.preview-area .btn-cs-primary {
+  flex-shrink: 0;
 }
 .loading,
 .error {

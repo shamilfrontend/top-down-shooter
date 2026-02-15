@@ -63,6 +63,16 @@ body {
   border-color: var(--cs-orange-hover);
 }
 
+.btn-cs-secondary {
+  background: #2a2a2a;
+  color: var(--cs-text);
+  border-color: var(--cs-panel-border);
+}
+.btn-cs-secondary:hover {
+  background: #333;
+  color: var(--cs-text);
+}
+
 /* Поле ввода CS 1.6 */
 .input-cs {
   padding: 6px 10px;

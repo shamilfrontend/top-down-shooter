@@ -88,6 +88,7 @@ const showKillConfirm = ref(false);
 const roundEndTint = ref<{ winner: 'ct' | 't' } | null>(null);
 
 const scoreboardOpen = ref(false);
+const pauseOpen = ref(false);
 const scoreboardPlayers = ref<ServerPlayer[]>([]);
 const sortedScoreboardPlayers = computed(() => {
   const list = [...scoreboardPlayers.value];
@@ -116,7 +117,13 @@ function onScoreboardKey(e: KeyboardEvent) {
     e.preventDefault();
     scoreboardOpen.value = !scoreboardOpen.value;
   } else if (e.code === 'Escape') {
-    scoreboardOpen.value = false;
+    if (scoreboardOpen.value) {
+      scoreboardOpen.value = false;
+    } else if (shopOpen.value) {
+      shopOpen.value = false;
+    } else {
+      pauseOpen.value = !pauseOpen.value;
+    }
   }
 }
 
@@ -149,8 +156,7 @@ async function init() {
       },
       onShoot: () => localSession?.shoot('local'),
       onReload: () => {
-        localSession?.reload('local');
-        playReload();
+        if (localSession?.reload('local')) playReload();
       },
       onSwitchWeapon: (slot) => localSession?.switchWeapon('local', slot),
       onOpenShop: () => { shopOpen.value = !shopOpen.value; },
@@ -309,6 +315,17 @@ watch(
     >
       <div v-if="mapLoadError" class="map-load-error">{{ mapLoadError }}</div>
       <canvas ref="canvasRef" class="game-canvas" />
+      <div v-if="pauseOpen" class="pause-overlay" @click.self="pauseOpen = false">
+        <div class="pause-panel panel-cs">
+          <h3 class="pause-title">Пауза</h3>
+          <button type="button" class="btn-cs btn-cs-primary pause-btn" @click="pauseOpen = false">
+            Продолжить (ESC)
+          </button>
+          <button type="button" class="btn-cs pause-btn" @click="exitGame">
+            Выйти
+          </button>
+        </div>
+      </div>
       <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
         <div
           v-for="(entry, i) in killFeedVisible"
@@ -513,6 +530,32 @@ watch(
 }
 .kill-feed-victim {
   color: #ccc;
+}
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+  pointer-events: auto;
+}
+.pause-panel {
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+.pause-title {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: var(--cs-text);
+}
+.pause-btn {
+  width: 100%;
 }
 .scoreboard-overlay {
   position: absolute;

@@ -2,6 +2,16 @@ import type { MapConfig } from 'top-down-cs-shared';
 
 const OBSTACLE_SIZES: Record<string, number> = { crate: 30, barrel: 20 };
 
+type MansionPatterns = {
+  grass: CanvasPattern;
+  parquet: CanvasPattern;
+  checkered: CanvasPattern;
+  path: CanvasPattern;
+  pathTile: CanvasPattern;
+  porch: CanvasPattern;
+  wall: CanvasPattern;
+};
+
 export class MapRenderer {
   private ctx: CanvasRenderingContext2D;
   private map: MapConfig;
@@ -12,6 +22,7 @@ export class MapRenderer {
   private canvasHeight: number;
   private floorPattern: CanvasPattern | null = null;
   private wallPattern: CanvasPattern | null = null;
+  private mansionPatterns: MansionPatterns | null = null;
 
   constructor(
     ctx: CanvasRenderingContext2D,
@@ -23,6 +34,12 @@ export class MapRenderer {
     this.map = map;
     this.canvasWidth = canvasWidth;
     this.canvasHeight = canvasHeight;
+    this.buildPatterns();
+  }
+
+  /** Подставить другую карту (например с сервера) и пересобрать паттерны. */
+  setMap(map: MapConfig) {
+    this.map = map;
     this.buildPatterns();
   }
 
@@ -80,6 +97,127 @@ export class MapRenderer {
       wc.fillRect(rx, ry, 1 + Math.random(), 1 + Math.random());
     }
     this.wallPattern = this.ctx.createPattern(wCanvas, 'repeat');
+
+    if (this.map.theme === 'mansion') {
+      this.buildMansionPatterns();
+    }
+  }
+
+  private buildMansionPatterns() {
+    const ctx = this.ctx;
+
+    // Трава — насыщенная, с вариацией оттенков
+    const grassCanvas = document.createElement('canvas');
+    grassCanvas.width = 64;
+    grassCanvas.height = 64;
+    const gc = grassCanvas.getContext('2d')!;
+    gc.fillStyle = '#2d4a22';
+    gc.fillRect(0, 0, 64, 64);
+    for (let i = 0; i < 150; i++) {
+      const rx = Math.random() * 64;
+      const ry = Math.random() * 64;
+      const g = 55 + Math.floor(Math.random() * 50);
+      const r = 35 + Math.floor(Math.random() * 25);
+      gc.fillStyle = `rgb(${r},${g},${18})`;
+      gc.fillRect(rx, ry, 2 + Math.random() * 4, 2 + Math.random() * 3);
+    }
+    const grass = ctx.createPattern(grassCanvas, 'repeat')!;
+
+    // Паркет — тёплый дуб, чёткие доски
+    const parquetCanvas = document.createElement('canvas');
+    parquetCanvas.width = 80;
+    parquetCanvas.height = 80;
+    const pc = parquetCanvas.getContext('2d')!;
+    pc.fillStyle = '#d4b896';
+    pc.fillRect(0, 0, 80, 80);
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 5; col++) {
+        const ox = col * 16 + (row % 2) * 8;
+        const oy = row * 16;
+        const grad = pc.createLinearGradient(ox, oy, ox + 14, oy + 14);
+        grad.addColorStop(0, '#e8d4b0');
+        grad.addColorStop(0.5, '#c9a870');
+        grad.addColorStop(1, '#a88450');
+        pc.fillStyle = grad;
+        pc.fillRect(ox, oy, 14, 14);
+        pc.strokeStyle = '#8b6914';
+        pc.lineWidth = 0.5;
+        pc.strokeRect(ox, oy, 14, 14);
+      }
+    }
+    const parquet = ctx.createPattern(parquetCanvas, 'repeat')!;
+
+    // Шахматная плитка — контрастная чёрно-белая
+    const checkCanvas = document.createElement('canvas');
+    checkCanvas.width = 48;
+    checkCanvas.height = 48;
+    const cc = checkCanvas.getContext('2d')!;
+    const cell = 24;
+    cc.fillStyle = '#1a1a1a';
+    cc.fillRect(0, 0, cell, cell);
+    cc.fillRect(cell, cell, cell, cell);
+    cc.fillStyle = '#f5f5f0';
+    cc.fillRect(cell, 0, cell, cell);
+    cc.fillRect(0, cell, cell, cell);
+    cc.strokeStyle = '#0a0a0a';
+    cc.lineWidth = 1;
+    cc.strokeRect(0, 0, 48, 48);
+    const checkered = ctx.createPattern(checkCanvas, 'repeat')!;
+
+    // Дорожки — светло-серая плитка
+    const pathCanvas = document.createElement('canvas');
+    pathCanvas.width = 32;
+    pathCanvas.height = 32;
+    const ptc = pathCanvas.getContext('2d')!;
+    ptc.fillStyle = '#a8a8a0';
+    ptc.fillRect(0, 0, 32, 32);
+    ptc.strokeStyle = 'rgba(0,0,0,0.08)';
+    ptc.lineWidth = 0.5;
+    ptc.strokeRect(0, 0, 32, 32);
+    for (let i = 0; i < 15; i++) {
+      ptc.fillStyle = `rgba(${140 + Math.floor(Math.random() * 30)},${140},${135},0.15)`;
+      ptc.fillRect(Math.random() * 30, Math.random() * 30, 1, 1);
+    }
+    const path = ctx.createPattern(pathCanvas, 'repeat')!;
+
+    // Дорожки/плаза — светлая коричневая плитка (садовые дорожки)
+    const pathTileCanvas = document.createElement('canvas');
+    pathTileCanvas.width = 36;
+    pathTileCanvas.height = 36;
+    const ptc2 = pathTileCanvas.getContext('2d')!;
+    ptc2.fillStyle = '#c4a878';
+    ptc2.fillRect(0, 0, 36, 36);
+    ptc2.strokeStyle = '#a88858';
+    ptc2.lineWidth = 1;
+    ptc2.strokeRect(0, 0, 36, 36);
+    ptc2.strokeRect(1, 1, 34, 34);
+    const pathTile = ctx.createPattern(pathTileCanvas, 'repeat')!;
+
+    // Крыльцо — тёмно-серая плитка
+    const porchCanvas = document.createElement('canvas');
+    porchCanvas.width = 32;
+    porchCanvas.height = 32;
+    const porc = porchCanvas.getContext('2d')!;
+    porc.fillStyle = '#4a4a50';
+    porc.fillRect(0, 0, 32, 32);
+    porc.strokeStyle = 'rgba(0,0,0,0.4)';
+    porc.lineWidth = 1;
+    porc.strokeRect(0, 0, 32, 32);
+    const porch = ctx.createPattern(porchCanvas, 'repeat')!;
+
+    const wallCanvas = document.createElement('canvas');
+    wallCanvas.width = 48;
+    wallCanvas.height = 48;
+    const wc = wallCanvas.getContext('2d')!;
+    wc.fillStyle = '#e2d4b8';
+    wc.fillRect(0, 0, 48, 48);
+    for (let i = 0; i < 25; i++) {
+      wc.fillStyle = `rgba(${200 + Math.floor(Math.random() * 40)},${200 + Math.floor(Math.random() * 30)},${170 + Math.floor(Math.random() * 40)},0.3)`;
+      wc.fillRect(Math.random() * 46, Math.random() * 46, 2, 2);
+    }
+    const wall = ctx.createPattern(wallCanvas, 'repeat')!;
+
+    this.mansionPatterns = { grass, parquet, checkered, path, pathTile, porch, wall };
   }
 
   setSize(width: number, height: number) {
@@ -115,56 +253,191 @@ export class MapRenderer {
 
     ctx.save();
 
-    // Фон за картой — тёмный
-    ctx.fillStyle = '#10101a';
+    // Фон за картой
+    ctx.fillStyle = map.theme === 'mansion' ? '#1a2a1a' : '#10101a';
     ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
 
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
-    // ===== Пол карты — текстурированный бетон =====
-    if (this.floorPattern) {
-      ctx.fillStyle = this.floorPattern;
+    // ===== Пол карты =====
+    if (map.theme === 'mansion' && this.mansionPatterns && map.floorZones?.length) {
+      ctx.fillStyle = this.mansionPatterns.grass;
       ctx.fillRect(0, 0, map.width, map.height);
+      map.floorZones.forEach((zone) => {
+        const pat =
+          zone.type === 'parquet'
+            ? this.mansionPatterns!.parquet
+            : zone.type === 'checkered'
+              ? this.mansionPatterns!.checkered
+              : zone.type === 'path'
+                ? this.mansionPatterns!.pathTile
+                : zone.type === 'porch'
+                  ? this.mansionPatterns!.porch
+                  : null;
+        if (zone.type === 'fountainPlatform') {
+          const cx = zone.x + zone.width / 2;
+          const cy = zone.y + zone.height / 2;
+          const r = Math.min(zone.width, zone.height) / 2 - 4;
+          ctx.fillStyle = this.mansionPatterns!.pathTile;
+          ctx.beginPath();
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 - Math.PI / 8;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = '#a08050';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        } else if (zone.type === 'fountain') {
+          const cx = zone.x + zone.width / 2;
+          const cy = zone.y + zone.height / 2;
+          const r = Math.min(zone.width, zone.height) / 2 - 12;
+          const grad = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.2, 0, cx, cy, r);
+          grad.addColorStop(0, '#4a8cc8');
+          grad.addColorStop(0.5, '#3a7ab8');
+          grad.addColorStop(1, '#2a5a90');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 - Math.PI / 8;
+            const x = cx + Math.cos(a) * r;
+            const y = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(60,100,140,0.7)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (zone.type === 'hedge') {
+          const w = zone.width;
+          const h = zone.height;
+          const grad = ctx.createLinearGradient(zone.x, zone.y, zone.x + w, zone.y + h);
+          grad.addColorStop(0, '#1e5028');
+          grad.addColorStop(0.5, '#265830');
+          grad.addColorStop(1, '#1a401e');
+          ctx.fillStyle = grad;
+          ctx.fillRect(zone.x, zone.y, w, h);
+          ctx.strokeStyle = '#153a18';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (zone.type === 'flowerBed') {
+          const cx = zone.x + zone.width / 2;
+          const cy = zone.y + zone.height / 2;
+          const r = Math.min(zone.width, zone.height) / 2 - 2;
+          const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+          grad.addColorStop(0, '#e8c8b8');
+          grad.addColorStop(0.6, '#d8a898');
+          grad.addColorStop(1, '#c89888');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#b08070';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        } else if (zone.type === 'planter') {
+          ctx.fillStyle = '#3a2a20';
+          ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+          ctx.strokeStyle = '#2a1a15';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+        } else if (zone.type === 'shack') {
+          ctx.fillStyle = '#6a6a68';
+          ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          ctx.fillRect(zone.x + zone.width * 0.15, zone.y + zone.height * 0.2, zone.width * 0.25, zone.height * 0.3);
+          ctx.fillRect(zone.x + zone.width * 0.6, zone.y + zone.height * 0.5, zone.width * 0.2, zone.height * 0.25);
+          ctx.strokeStyle = '#4a4a48';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+        } else if (zone.type === 'bush') {
+          const cx = zone.x + zone.width / 2;
+          const cy = zone.y + zone.height / 2;
+          const r = Math.min(zone.width, zone.height) / 2;
+          const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0, cx, cy, r);
+          grad.addColorStop(0, '#2a5a2a');
+          grad.addColorStop(0.7, '#1e401e');
+          grad.addColorStop(1, '#152a15');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, r * 0.9, r, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(30,60,30,0.6)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (zone.type === 'shadow') {
+          const cx = zone.x + zone.width / 2;
+          const cy = zone.y + zone.height / 2;
+          const r = Math.max(zone.width, zone.height) * 0.6;
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+          grad.addColorStop(0, 'rgba(10,12,18,0.7)');
+          grad.addColorStop(0.5, 'rgba(15,18,25,0.35)');
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+        } else if (pat) {
+          ctx.fillStyle = pat;
+          ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+          if (zone.type === 'path') {
+            ctx.strokeStyle = '#5a5a55';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+          }
+        }
+      });
     } else {
-      ctx.fillStyle = '#3a3a48';
-      ctx.fillRect(0, 0, map.width, map.height);
-    }
-
-    // Разметка пола (крупные плиты)
-    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
-    ctx.lineWidth = 1;
-    const tileSize = 200;
-    for (let gx = 0; gx <= map.width; gx += tileSize) {
-      ctx.beginPath();
-      ctx.moveTo(gx, 0);
-      ctx.lineTo(gx, map.height);
-      ctx.stroke();
-    }
-    for (let gy = 0; gy <= map.height; gy += tileSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, gy);
-      ctx.lineTo(map.width, gy);
-      ctx.stroke();
+      if (this.floorPattern) {
+        ctx.fillStyle = this.floorPattern;
+        ctx.fillRect(0, 0, map.width, map.height);
+      } else {
+        ctx.fillStyle = '#3a3a48';
+        ctx.fillRect(0, 0, map.width, map.height);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+      ctx.lineWidth = 1;
+      const tileSize = 200;
+      for (let gx = 0; gx <= map.width; gx += tileSize) {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, map.height);
+        ctx.stroke();
+      }
+      for (let gy = 0; gy <= map.height; gy += tileSize) {
+        ctx.beginPath();
+        ctx.moveTo(0, gy);
+        ctx.lineTo(map.width, gy);
+        ctx.stroke();
+      }
     }
 
     // ===== Тени от стен (drop shadow) =====
+    const shadowOffset = map.theme === 'mansion' ? 4 : 6;
+    const shadowAlpha = map.theme === 'mansion' ? 0.18 : 0.25;
     map.walls.forEach((wall) => {
-      const sx = 6;
-      const sy = 6;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(wall.x + sx, wall.y + sy, wall.width, wall.height);
+      ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+      ctx.fillRect(wall.x + shadowOffset, wall.y + shadowOffset, wall.width, wall.height);
     });
 
-    // ===== Стены — текстура кирпича =====
+    // ===== Стены =====
+    const isMansion = map.theme === 'mansion';
     map.walls.forEach((wall) => {
-      // Тело стены с текстурой
-      if (this.wallPattern) {
+      if (isMansion && this.mansionPatterns) {
+        ctx.fillStyle = this.mansionPatterns.wall;
+        ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
+      } else if (this.wallPattern) {
         ctx.fillStyle = this.wallPattern;
+        ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
       } else {
         ctx.fillStyle = '#5a5a72';
+        ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
       }
-      ctx.fillRect(wall.x, wall.y, wall.width, wall.height);
 
       // 3D эффект — верхняя и левая грань (свет)
       ctx.fillStyle = 'rgba(255,255,255,0.1)';

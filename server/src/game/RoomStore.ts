@@ -79,7 +79,7 @@ class RoomStoreClass {
     return undefined;
   }
 
-  list(): { id: string; name: string; map: string; maxPlayers: number; playerCount: number; hasPassword: boolean; status: 'waiting' | 'playing' }[] {
+  list(): { id: string; name: string; map: string; maxPlayers: number; playerCount: number; hasPassword: boolean; status: 'waiting' | 'playing'; roundsToWin: number }[] {
     return Array.from(this.rooms.values())
       .filter((r) => r.status === 'waiting')
       .map((r) => ({
@@ -90,6 +90,7 @@ class RoomStoreClass {
         playerCount: this.countPlayersInRoom(r),
         hasPassword: !!r.password,
         status: r.status,
+        roundsToWin: r.roundsToWin,
       }));
   }
 

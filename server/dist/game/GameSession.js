@@ -111,7 +111,7 @@ class GameSession {
                 });
             }
         }
-        this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 5, medkit: 3, armor: 3 });
+        this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 3, medkit: 3, armor: 3 });
         this.roundStartTime = Date.now();
         this.lastPickupRelocateInterval = Math.floor(Date.now() / Pickups_1.PICKUP_RELOCATE_MS);
         this.tickInterval = setInterval(() => this.tick(), TICK_MS);
@@ -141,14 +141,15 @@ class GameSession {
         const def = Weapons_1.WEAPONS[p.weapon];
         if (!def)
             return;
+        const maxReserve = def.maxReserve ?? 120;
         const saved = p.weaponAmmo[p.weapon];
         if (saved) {
             p.ammo = saved.ammo;
-            p.ammoReserve = saved.reserve;
+            p.ammoReserve = Math.min(saved.reserve, maxReserve);
         }
         else {
             p.ammo = def.magazineSize;
-            p.ammoReserve = p.weapon === 'usp' ? 24 : 90;
+            p.ammoReserve = Math.min(p.weapon === 'usp' ? 24 : 90, maxReserve);
         }
     }
     saveWeaponAmmo(p) {
@@ -215,6 +216,8 @@ class GameSession {
         const p = this.players.get(socketId);
         if (!p || !p.isAlive)
             return;
+        if (this.roundPhase === 'ended')
+            return;
         const now = Date.now();
         const def = Weapons_1.WEAPONS[p.weapon];
         if (!def)
@@ -255,6 +258,16 @@ class GameSession {
                 const reduction = 1 - armor * 0.004; // при 100 броне — 60% урона, при 0 — 100%
                 const damage = Math.max(1, Math.floor(def.damage * Math.max(0.4, reduction)));
                 const armorDamage = Math.floor(damage * 0.5);
+                const hitX = p.x + Math.cos(shotAngle) * hit.dist;
+                const hitY = p.y + Math.sin(shotAngle) * hit.dist;
+                this.io.to(this.roomId).emit('game:event', {
+                    type: 'hit',
+                    x: hitX,
+                    y: hitY,
+                    damage,
+                    attackerId: p.socketId,
+                    victimId: hit.hitId,
+                });
                 target.health = Math.max(0, target.health - damage);
                 target.armor = Math.max(0, (target.armor ?? 0) - armorDamage);
                 if (target.health <= 0) {
@@ -268,6 +281,7 @@ class GameSession {
                         victim: hit.hitId,
                         killerName: p.username,
                         victimName: target.username,
+                        weapon: p.weapon,
                     });
                 }
             }
@@ -290,14 +304,21 @@ class GameSession {
         const p = this.players.get(socketId);
         if (!p || !p.isAlive)
             return;
+        if (weaponId === 'armor') {
+            const cur = p.armor ?? 0;
+            if (cur >= GameSession.ARMOR_MAX || p.credits < GameSession.ARMOR_PRICE)
+                return;
+            p.credits -= GameSession.ARMOR_PRICE;
+            p.armor = Math.min(GameSession.ARMOR_MAX, cur + GameSession.ARMOR_BUY_AMOUNT);
+            return;
+        }
         const def = Weapons_1.WEAPONS[weaponId];
         if (!def || !def.price)
             return;
         if (p.credits < def.price)
             return;
-        if (weaponId === 'ak47' || weaponId === 'm4') {
-            if (p.weapons[0])
-                return;
+        const buyablePrimary = ['ak47', 'm4', 'awp'];
+        if (buyablePrimary.includes(weaponId)) {
             p.credits -= def.price;
             p.weapons[0] = weaponId;
             p.weaponAmmo[weaponId] = { ammo: def.magazineSize, reserve: 0 };
@@ -309,6 +330,8 @@ class GameSession {
     reload(socketId) {
         const p = this.players.get(socketId);
         if (!p || !p.isAlive || p.ammoReserve <= 0)
+            return;
+        if (this.roundPhase === 'ended')
             return;
         const def = Weapons_1.WEAPONS[p.weapon];
         if (!def || p.ammo >= def.magazineSize)
@@ -362,7 +385,7 @@ class GameSession {
             }
         }
         this.processReloads();
-        const taken = (0, Pickups_1.processPickups)(this.pickups, Array.from(this.players.values()), (w) => Weapons_1.WEAPONS[w]?.magazineSize ?? 30, now);
+        const taken = (0, Pickups_1.processPickups)(this.pickups, Array.from(this.players.values()), (w) => Weapons_1.WEAPONS[w]?.magazineSize ?? 30, now, (w) => Weapons_1.WEAPONS[w]?.maxReserve);
         for (const t of taken) {
             const eventType = t.type === 'ammo' ? 'pickupAmmo' : t.type === 'medkit' ? 'pickupMedkit' : 'pickupArmor';
             this.io.to(this.roomId).emit('game:event', { type: eventType, playerId: t.playerId });
@@ -372,6 +395,7 @@ class GameSession {
             this.lastPickupRelocateInterval = relocateInterval;
             (0, Pickups_1.relocatePickups)(this.pickups, this.map, now);
         }
+        const freezeInput = { up: false, down: false, left: false, right: false };
         for (const p of this.players.values()) {
             if (!p.isAlive)
                 continue;
@@ -382,7 +406,8 @@ class GameSession {
                 vy: p.vy,
                 angle: p.angle,
             };
-            const next = (0, ServerPhysics_1.updatePlayer)(state, p.lastInput, this.map, dt);
+            const input = this.roundPhase === 'ended' ? freezeInput : p.lastInput;
+            const next = (0, ServerPhysics_1.updatePlayer)(state, input, this.map, dt);
             p.x = next.x;
             p.y = next.y;
             p.vx = next.vx;
@@ -415,6 +440,7 @@ class GameSession {
                 credits: p.credits,
                 weapons: p.weapons,
                 currentSlot: p.currentSlot,
+                reloadEndTime: p.reloadEndTime > now ? p.reloadEndTime : undefined,
             })),
             pickups: (0, Pickups_1.getActivePickups)(this.pickups, now),
             round: this.round,
@@ -450,6 +476,7 @@ class GameSession {
                 credits: p.credits,
                 weapons: p.weapons,
                 currentSlot: p.currentSlot,
+                reloadEndTime: p.reloadEndTime > now ? p.reloadEndTime : undefined,
             })),
             pickups: (0, Pickups_1.getActivePickups)(this.pickups, now),
             round: this.round,
@@ -469,6 +496,9 @@ class GameSession {
             this.players.delete(socketId);
     }
 }
+GameSession.ARMOR_PRICE = 650;
+GameSession.ARMOR_BUY_AMOUNT = 50;
+GameSession.ARMOR_MAX = 100;
 const sessions = new Map();
 async function startGameSession(io, roomId, mapId) {
     try {

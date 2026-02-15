@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps<{
   roomId: string;
@@ -21,6 +21,13 @@ watch(() => props.roomId, () => {
 function handleSubmit() {
   emit('submit', props.roomId, props.hasPassword ? password.value : undefined);
 }
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.code === 'Escape') emit('close');
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown));
+onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
 
 <template>

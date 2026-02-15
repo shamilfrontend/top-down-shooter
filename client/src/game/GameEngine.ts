@@ -235,6 +235,12 @@ export class GameEngine {
     this.players = players;
   }
 
+  /** Подставить карту с сервера (при game:state). */
+  setMap(map: MapConfig) {
+    this.map = map;
+    this.mapRenderer.setMap(map);
+  }
+
   setServerState(
     players: ServerPlayer[],
     pickups?: Array<{ id: string; type: string; x: number; y: number }>,

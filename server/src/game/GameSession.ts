@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import path from 'path';
 import fs from 'fs/promises';
+import type { MapConfig } from 'top-down-cs-shared';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './Weapons';
@@ -74,7 +75,7 @@ export interface GameUpdatePayload {
 class GameSession {
   private io: Server;
   private roomId: string;
-  private map: { id: string; name: string; width: number; height: number; spawnPoints: { ct: { x: number; y: number }[]; t: { x: number; y: number }[] }; walls: { x: number; y: number; width: number; height: number }[]; obstacles: { x: number; y: number; type: string }[] };
+  private map: MapConfig;
   private players = new Map<string, GamePlayer>();
   private pickups: PickupItem[] = [];
   private tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -90,7 +91,7 @@ class GameSession {
 
   private botDifficulties = new Map<string, 'easy' | 'medium' | 'hard'>();
 
-  constructor(io: Server, roomId: string, map: GameSession['map'], roundsToWin: number) {
+  constructor(io: Server, roomId: string, map: MapConfig, roundsToWin: number) {
     this.io = io;
     this.roomId = roomId;
     this.map = map;
@@ -259,6 +260,11 @@ class GameSession {
         }));
         this.io.to(this.roomId).emit('game:event', { type: 'gameOver', winner, players: finalPlayers });
         this.stop();
+        const room = RoomStore.get(this.roomId);
+        if (room) {
+          room.status = 'waiting';
+          this.io.to(this.roomId).emit('room:update', RoomStore.toState(room));
+        }
         stopGameSession(this.roomId);
       }
     }
@@ -277,6 +283,7 @@ class GameSession {
   shoot(socketId: string): void {
     const p = this.players.get(socketId);
     if (!p || !p.isAlive) return;
+    if (this.roundPhase === 'ended') return;
 
     const now = Date.now();
     const def = WEAPONS[p.weapon];
@@ -396,6 +403,7 @@ class GameSession {
   reload(socketId: string): void {
     const p = this.players.get(socketId);
     if (!p || !p.isAlive || p.ammoReserve <= 0) return;
+    if (this.roundPhase === 'ended') return;
     const def = WEAPONS[p.weapon];
     if (!def || p.ammo >= def.magazineSize) return;
     if (Date.now() < p.reloadEndTime) return;
@@ -433,6 +441,7 @@ class GameSession {
 
     this.checkRoundEnd(now);
 
+    const activePickups = getActivePickups(this.pickups, now);
     for (const p of this.players.values()) {
       if (p.socketId.startsWith('bot-') && p.isAlive) {
         const playersList = Array.from(this.players.values()).map((op) => ({
@@ -451,7 +460,8 @@ class GameSession {
           playersList,
           this.map,
           this.botDifficulties.get(p.socketId) ?? 'medium',
-          this.tickCount
+          this.tickCount,
+          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve }
         );
         p.lastInput = action.input;
         p.angle = action.angle;
@@ -478,6 +488,7 @@ class GameSession {
       relocatePickups(this.pickups, this.map, now);
     }
 
+    const freezeInput: GameInput = { up: false, down: false, left: false, right: false };
     for (const p of this.players.values()) {
       if (!p.isAlive) continue;
 
@@ -488,7 +499,8 @@ class GameSession {
         vy: p.vy,
         angle: p.angle,
       };
-      const next = updatePlayer(state, p.lastInput, this.map, dt);
+      const input = this.roundPhase === 'ended' ? freezeInput : p.lastInput;
+      const next = updatePlayer(state, input, this.map, dt);
       p.x = next.x;
       p.y = next.y;
       p.vx = next.vx;
@@ -535,7 +547,7 @@ class GameSession {
     this.io.to(this.roomId).emit('game:update', payload);
   }
 
-  getState(): { map: GameSession['map']; players: GameUpdatePayload['players']; pickups: GameUpdatePayload['pickups']; round: number; roundTimeLeft: number; roundWins: { ct: number; t: number }; roundPhase: string } {
+  getState(): { map: MapConfig; players: GameUpdatePayload['players']; pickups: GameUpdatePayload['pickups']; round: number; roundTimeLeft: number; roundWins: { ct: number; t: number }; roundPhase: string } {
     const now = Date.now();
     const roundTimeLeft = this.roundPhase === 'playing'
       ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))

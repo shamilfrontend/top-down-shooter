@@ -90,7 +90,7 @@ function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
       <div class="header-orange"></div>
       <h1 class="title">{{ room.currentRoom?.name }}</h1>
       <div class="header-actions">
-        <span class="map-badge">{{ room.currentRoom?.map }} · {{ room.currentRoom?.maxPlayers }} слотов</span>
+        <span class="map-badge">{{ room.currentRoom?.map }} · {{ room.currentRoom?.maxPlayers }} слотов · до {{ room.currentRoom?.roundsToWin }} побед</span>
         <button type="button" class="btn-cs" @click="leave">Выйти</button>
       </div>
     </header>

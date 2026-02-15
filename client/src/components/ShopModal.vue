@@ -57,7 +57,7 @@ function weaponImageSrc(id: string): string {
       <div class="shop-modal panel-cs">
         <div class="shop-header">
           <h3 class="shop-title">МАГАЗИН</h3>
-          <span class="credits">${{ credits }}</span>
+          <span class="credits">{{ credits }} ₽</span>
         </div>
         <div class="shop-items">
           <div
@@ -76,7 +76,7 @@ function weaponImageSrc(id: string): string {
               🛡
             </div>
             <div class="item-name">{{ item.name }}</div>
-            <div class="item-price">${{ item.price }}</div>
+            <div class="item-price">{{ item.price }} ₽</div>
             <button
               type="button"
               class="btn-cs btn-cs-primary btn-buy"

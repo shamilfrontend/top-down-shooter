@@ -17,6 +17,7 @@ export interface RoomListItem {
   playerCount: number;
   hasPassword: boolean;
   status: 'waiting' | 'playing';
+  roundsToWin?: number;
 }
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';

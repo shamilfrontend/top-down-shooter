@@ -13,11 +13,17 @@ const { connect } = useSocket();
 const showCreateForm = ref(false);
 const joinTarget = ref<{ id: string; name: string; hasPassword: boolean } | null>(null);
 
+const ROOM_LIST_REFRESH_MS = 8000;
+
 onMounted(() => {
   connect();
   room.fetchRoomList();
   const cleanup = room.setupListeners();
-  onUnmounted(cleanup);
+  const refreshInterval = setInterval(() => room.fetchRoomList(), ROOM_LIST_REFRESH_MS);
+  onUnmounted(() => {
+    cleanup();
+    clearInterval(refreshInterval);
+  });
 });
 
 watch(() => room.currentRoom, (r) => {
@@ -90,7 +96,7 @@ function handleJoin(roomId: string, password?: string) {
           @click="openJoin(r.id, r.name, r.hasPassword)"
         >
           <span class="room-name">{{ r.name }}</span>
-          <span class="room-map">{{ r.map }}</span>
+          <span class="room-map">{{ r.map }}{{ r.roundsToWin != null ? ` · до ${r.roundsToWin} побед` : '' }}</span>
           <span class="room-players">{{ r.playerCount }} / {{ r.maxPlayers }}</span>
           <span v-if="r.hasPassword" class="room-lock">🔒</span>
         </div>

@@ -16,6 +16,16 @@ export interface Obstacle {
   type: string;
 }
 
+export type FloorZoneType = 'grass' | 'parquet' | 'checkered' | 'path' | 'porch' | 'fountain' | 'fountainPlatform' | 'bush' | 'hedge' | 'shadow' | 'shack' | 'flowerBed' | 'planter';
+
+export interface FloorZone {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: FloorZoneType;
+}
+
 export interface MapConfig {
   id: string;
   name: string;
@@ -27,4 +37,8 @@ export interface MapConfig {
   };
   walls: Wall[];
   obstacles: Obstacle[];
+  /** Тема карты для визуального стиля (mansion = особняк с садом) */
+  theme?: 'default' | 'mansion';
+  /** Зоны пола для тематических карт (трава, паркет, шахматная плитка, дорожки, фонтан) */
+  floorZones?: FloorZone[];
 }

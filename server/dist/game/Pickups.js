@@ -70,7 +70,7 @@ function relocatePickups(pickups, map, now) {
         p.y = pos.y;
     }
 }
-function processPickups(pickups, players, getMagazineSize, now) {
+function processPickups(pickups, players, getMagazineSize, now, getMaxReserve) {
     const taken = [];
     for (const p of pickups) {
         if (p.respawnAt > now)
@@ -85,6 +85,9 @@ function processPickups(pickups, players, getMagazineSize, now) {
             if (p.type === 'ammo') {
                 const magSize = getMagazineSize(pl.weapon) ?? 30;
                 pl.ammoReserve += magSize * AMMO_MAGAZINES;
+                const maxR = getMaxReserve?.(pl.weapon);
+                if (maxR != null)
+                    pl.ammoReserve = Math.min(pl.ammoReserve, maxR);
                 if (pl.weaponAmmo?.[pl.weapon])
                     pl.weaponAmmo[pl.weapon].reserve = pl.ammoReserve;
                 p.respawnAt = now + AMMO_RESPAWN_MS;

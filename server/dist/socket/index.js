@@ -27,6 +27,9 @@ function setupSocketHandlers(io) {
     io.on('connection', (socket) => {
         const auth = getAuth(socket);
         const username = auth?.username || `Guest-${socket.id.slice(0, 6)}`;
+        socket.on('ping', (payload) => {
+            socket.emit('pong', { t: payload?.t ?? Date.now() });
+        });
         socket.on('room:create', (options) => {
             const room = RoomStore_1.RoomStore.create(socket.id, auth?.userId, username, {
                 name: options.name || 'Комната',

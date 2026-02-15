@@ -101,11 +101,23 @@ const roundStartOverlay = ref<{ round: number } | null>(null);
 const showHitMarker = ref(false);
 const showKillConfirm = ref(false);
 const roundEndTint = ref<{ winner: 'ct' | 't' } | null>(null);
+const connectionLost = ref(false);
+
+watch(isConnected, (connected) => {
+  if (!connected && roomId.value) connectionLost.value = true;
+});
 
 function exitToLobby() {
+  connectionLost.value = false;
   roomStore.leaveRoom();
   gameOver.value = null;
   router.push({ name: 'lobby' });
+}
+
+function backToRoom() {
+  gameOver.value = null;
+  connectionLost.value = false;
+  router.push({ name: 'room' });
 }
 
 async function init() {
@@ -157,6 +169,7 @@ async function init() {
       lastRound.value = round;
     }
     const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }) => {
+      if (data.map) engine?.setMap(data.map);
       scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins, roundPhase: data.roundPhase } : undefined);
       applyRoundSound(data.round);
@@ -248,11 +261,19 @@ function onScoreboardKey(e: KeyboardEvent) {
   } else if (e.code === 'Escape') {
     if (scoreboardOpen.value) {
       scoreboardOpen.value = false;
+    } else if (shopOpen.value) {
+      shopOpen.value = false;
     } else if (!gameOver.value) {
       pauseOpen.value = !pauseOpen.value;
     }
   }
 }
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (!gameOver.value) {
+    e.preventDefault();
+  }
+}
+
 onMounted(() => {
   init();
   killFeedInterval = setInterval(() => {
@@ -260,10 +281,12 @@ onMounted(() => {
     killFeed.value = killFeed.value.filter((e) => now - e.time < KILL_FEED_DURATION_MS);
   }, 500);
   window.addEventListener('keydown', onScoreboardKey);
+  window.addEventListener('beforeunload', onBeforeUnload);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onScoreboardKey);
+  window.removeEventListener('beforeunload', onBeforeUnload);
   if (killFeedInterval) clearInterval(killFeedInterval);
   engine?.stop();
   engine = null;
@@ -398,6 +421,14 @@ watch(() => route.params.roomId, () => {
         @close="shopOpen = false"
         @buy="(id) => { socket?.emit('player:buy', id); shopOpen = false; }"
       />
+      <div v-if="connectionLost" class="connection-lost-overlay">
+        <div class="connection-lost-card panel-cs">
+          <h2 class="connection-lost-title">Потеряно соединение с сервером</h2>
+          <button type="button" class="btn-cs btn-cs-primary" @click="exitToLobby">
+            В лобби
+          </button>
+        </div>
+      </div>
       <div v-if="gameOver" class="game-over-overlay">
         <div class="game-over-card panel-cs">
           <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'Спецназ одержал победу!' : 'Террористы победили!' }}</h2>
@@ -420,9 +451,14 @@ watch(() => route.params.roomId, () => {
               <span>{{ p.deaths }}</span>
             </div>
           </div>
-          <button type="button" class="btn-cs btn-cs-primary" @click="exitToLobby">
-            Выход
+          <div class="game-over-actions">
+          <button type="button" class="btn-cs btn-cs-primary" @click="backToRoom">
+            Вернуться в комнату
           </button>
+          <button type="button" class="btn-cs btn-cs-secondary" @click="exitToLobby">
+            В лобби
+          </button>
+        </div>
         </div>
       </div>
     </div>
@@ -762,6 +798,27 @@ watch(() => route.params.roomId, () => {
   width: 100%;
   height: 100%;
 }
+.connection-lost-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  pointer-events: auto;
+}
+.connection-lost-card {
+  padding: 28px 36px;
+  text-align: center;
+  min-width: 280px;
+}
+.connection-lost-title {
+  margin: 0 0 20px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--cs-text);
+}
 .game-over-overlay {
   position: absolute;
   inset: 0;
@@ -806,8 +863,14 @@ watch(() => route.params.roomId, () => {
 }
 .stats-row.ct { color: #6b9bd1; }
 .stats-row.t { color: #d4a574; }
-.game-over-card .btn-cs-primary {
-  margin-top: 8px;
+.game-over-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.game-over-card .btn-cs-primary,
+.game-over-card .btn-cs-secondary {
   padding: 8px 24px;
 }
 </style>

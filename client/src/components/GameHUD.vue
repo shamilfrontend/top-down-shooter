@@ -117,22 +117,24 @@ function isSelected(key: number): boolean {
 <template>
   <div class="hud">
     <div class="hud-top">
-      <div class="score">
-        <span class="team-ct">{{ scoreCt }}</span>
-        <span class="sep">:</span>
-        <span class="team-t">{{ scoreT }}</span>
-        <span v-if="roundsToWin != null" class="score-to-win"> (до {{ roundsToWin }})</span>
+      <div class="score-block">
+        <div class="score">
+          <span class="team-name team-ct">Спецназ</span>
+          <span class="team-ct">{{ scoreCt }}</span>
+          <span class="sep">:</span>
+          <span class="team-t">{{ scoreT }}</span>
+          <span class="team-name team-t">Террористы</span>
+          <span v-if="roundsToWin != null" class="score-to-win"> (до {{ roundsToWin }})</span>
+        </div>
       </div>
-      <div v-if="credits != null" class="credits-bar">
-        ${{ credits }}
-      </div>
-      <div v-if="round != null" class="round-info">
-        <span>Раунд {{ round }}</span>
-        <span v-if="roundPhase === 'ended'" class="round-phase-buy">Время закупа</span>
-        <span v-else-if="roundTimeLeft != null" class="round-timer">
-          {{ Math.floor((roundTimeLeft ?? 0) / 60) }}:{{ String((roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
-        </span>
-      </div>
+    </div>
+
+    <div v-if="round != null" class="hud-round-bottom">
+      <span>Раунд {{ round }}</span>
+      <span v-if="roundPhase === 'ended'" class="round-phase-buy">Время закупа</span>
+      <span v-else-if="roundTimeLeft != null" class="round-timer">
+        {{ Math.floor((roundTimeLeft ?? 0) / 60) }}:{{ String((roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
+      </span>
     </div>
 
     <div class="hud-bottom">
@@ -147,10 +149,6 @@ function isSelected(key: number): boolean {
             <span class="slot-key">{{ slot.label }}</span>
             <template v-if="getSlotWeapon(slot.key)">
               <span class="slot-icon-wrap">
-                <span
-                  class="slot-icon-bar slot-fallback"
-                  :style="{ width: (weaponIconWidth[getSlotWeapon(slot.key)!] ?? 18) + 'px' }"
-                />
                 <img
                   :src="weaponImageSrc(getSlotWeapon(slot.key)!)"
                   :alt="weaponNames[getSlotWeapon(slot.key)!] ?? ''"
@@ -192,20 +190,22 @@ function isSelected(key: number): boolean {
         </div>
       </div>
       <div class="hud-right">
+        <div v-if="credits != null" class="credits-bar">
+          {{ credits }} ₽
+        </div>
         <div class="hp-armor-row">
           <div class="hp-armor-item">
-            <span class="hp-armor-label">HP</span>
+            <span class="hp-armor-icon hp-icon" aria-label="Здоровье">♥</span>
             <div class="hp-bar-cs">
               <div
                 class="hp-fill-cs"
-                :class="displayedHealth > 66 ? 'high' : displayedHealth > 33 ? 'mid' : 'low'"
                 :style="{ width: `${Math.min(100, displayedHealth)}%` }"
               />
               <span class="hp-armor-num">{{ displayedHealth }}</span>
             </div>
           </div>
           <div class="hp-armor-item">
-            <span class="hp-armor-label">AP</span>
+            <span class="hp-armor-icon armor-icon" aria-label="Броня">🛡</span>
             <div class="armor-bar-cs">
               <div
                 class="armor-fill-cs"
@@ -214,10 +214,6 @@ function isSelected(key: number): boolean {
               <span class="hp-armor-num">{{ armor ?? 0 }}</span>
             </div>
           </div>
-        </div>
-        <div class="stats-cs">
-          <span class="stat-cs">K: {{ kills }}</span>
-          <span class="stat-cs">D: {{ deaths }}</span>
         </div>
       </div>
     </div>
@@ -235,13 +231,40 @@ function isSelected(key: number): boolean {
   font-family: Tahoma, Arial, sans-serif;
 }
 .hud-top {
+  position: relative;
+  width: 100%;
+  min-height: 0;
   padding: 10px 20px;
+}
+.score-block {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .score {
   font-size: 1.55rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-shadow: 1px 1px 0 #000;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.team-name {
+  font-size: 0.5em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+}
+.team-name.team-ct {
+  margin-right: 12px;
+}
+.team-name.team-t {
+  margin-left: 12px;
 }
 .team-ct {
   color: #6b9bd1;
@@ -250,36 +273,42 @@ function isSelected(key: number): boolean {
   color: #d4a574;
 }
 .sep {
-  margin: 0 6px;
+  margin: 0 4px;
   color: var(--cs-text-dim);
 }
 .score-to-win {
-  margin-left: 6px;
+  margin-left: 4px;
   font-size: 0.85em;
   font-weight: 500;
   color: var(--cs-text-dim);
 }
-.credits-bar {
-  margin-top: 4px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--cs-orange);
-  text-shadow: 1px 1px 0 #000;
-}
-.round-info {
-  margin-top: 4px;
-  font-size: 12px;
+.hud-round-bottom {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 26px;
   color: var(--cs-text-dim);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.round-timer {
-  margin-left: 10px;
+.hud-round-bottom .round-timer,
+.hud-round-bottom .round-phase-buy {
+  margin-left: 0;
   font-weight: 700;
   color: var(--cs-orange);
 }
 .round-phase-buy {
-  margin-left: 10px;
   font-weight: 700;
   color: var(--cs-orange);
+}
+.credits-bar {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--cs-orange);
+  text-shadow: 1px 1px 0 #000;
+  margin-bottom: 4px;
 }
 .hud-bottom {
   display: flex;
@@ -332,22 +361,11 @@ function isSelected(key: number): boolean {
   min-height: 44px;
   min-width: 64px;
 }
-.slot-icon-bar.slot-fallback {
-  position: absolute;
-  display: block;
-  height: 3px;
-  background: var(--cs-orange);
-}
 .slot-weapon-img {
   position: relative;
   max-width: 76px;
   max-height: 44px;
   object-fit: contain;
-}
-.slot-icon-bar {
-  display: block;
-  height: 3px;
-  background: var(--cs-orange);
 }
 .slot-icon-empty {
   font-size: 12px;
@@ -450,11 +468,21 @@ function isSelected(key: number): boolean {
   align-items: center;
   gap: 8px;
 }
-.hp-armor-label {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--cs-text-dim);
-  width: 28px;
+.hp-armor-icon {
+  font-size: 44px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  flex-shrink: 0;
+}
+.hp-icon {
+  color: var(--cs-orange);
+}
+.armor-icon {
+  font-size: 40px;
+  filter: none;
 }
 .hp-bar-cs,
 .armor-bar-cs {
@@ -470,13 +498,11 @@ function isSelected(key: number): boolean {
 .hp-fill-cs {
   height: 100%;
   transition: width 0.15s;
+  background: var(--cs-orange);
 }
-.hp-fill-cs.high { background: #4a9b3c; }
-.hp-fill-cs.mid { background: #c4a420; }
-.hp-fill-cs.low { background: #b03030; }
 .armor-fill-cs {
   height: 100%;
-  background: #4a6a8a;
+  background: var(--cs-orange);
   transition: width 0.15s;
 }
 .hp-armor-num {
@@ -490,11 +516,4 @@ function isSelected(key: number): boolean {
   color: #fff;
   text-shadow: 1px 1px 0 #000;
 }
-.stats-cs {
-  display: flex;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--cs-text-dim);
-}
-.stat-cs { font-weight: 600; }
 </style>

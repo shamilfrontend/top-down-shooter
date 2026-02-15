@@ -260,6 +260,7 @@ export class LocalGameSession {
   shoot(id: string): void {
     const p = this.players.get(id);
     if (!p || !p.isAlive) return;
+    if (this.roundPhase === 'ended') return;
 
     const now = Date.now();
     const def = WEAPONS[p.weapon];
@@ -315,13 +316,16 @@ export class LocalGameSession {
     }
   }
 
-  reload(id: string): void {
+  /** Возвращает true, если перезарядка реально началась. */
+  reload(id: string): boolean {
     const p = this.players.get(id);
-    if (!p || !p.isAlive || p.ammoReserve <= 0) return;
+    if (!p || !p.isAlive || p.ammoReserve <= 0) return false;
+    if (this.roundPhase === 'ended') return false;
     const def = WEAPONS[p.weapon];
-    if (!def || p.ammo >= def.magazineSize) return;
-    if (Date.now() < p.reloadEndTime) return;
+    if (!def || p.ammo >= def.magazineSize) return false;
+    if (Date.now() < p.reloadEndTime) return false;
     this.startReload(p);
+    return true;
   }
 
   private startReload(p: LocalPlayer) {
@@ -503,10 +507,12 @@ export class LocalGameSession {
       relocatePickups(this.pickups, this.map, now);
     }
 
+    const freezeInput: InputState = { up: false, down: false, left: false, right: false };
     for (const p of this.players.values()) {
       if (!p.isAlive) continue;
       const state: LocalPlayerState = { x: p.x, y: p.y, vx: p.vx, vy: p.vy, angle: p.angle };
-      const next = updateLocalPlayer(state, p.lastInput, this.map, dt);
+      const input = this.roundPhase === 'ended' ? freezeInput : p.lastInput;
+      const next = updateLocalPlayer(state, input, this.map, dt);
       p.x = next.x;
       p.y = next.y;
       p.vx = next.vx;
