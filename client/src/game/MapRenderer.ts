@@ -87,6 +87,10 @@ export class MapRenderer {
     this.canvasHeight = height;
   }
 
+  getSize(): { width: number; height: number } {
+    return { width: this.canvasWidth, height: this.canvasHeight };
+  }
+
   setCamera(x: number, y: number, scale = 1) {
     this.offsetX = this.canvasWidth / 2 - x * scale;
     this.offsetY = this.canvasHeight / 2 - y * scale;

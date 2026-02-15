@@ -81,6 +81,9 @@ const killFeed = ref<KillFeedEntry[]>([]);
 const KILL_FEED_DURATION_MS = 5000;
 const KILL_FEED_MAX = 6;
 const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
+const showHitMarker = ref(false);
+const showKillConfirm = ref(false);
+const roundEndTint = ref<{ winner: 'ct' | 't' } | null>(null);
 
 const scoreboardOpen = ref(false);
 const scoreboardPlayers = ref<ServerPlayer[]>([]);
@@ -164,10 +167,15 @@ async function init() {
     localSession.setOnShotTrail((x1, y1, x2, y2) => {
       engine?.addBulletTrail(x1, y1, x2, y2);
     });
-    localSession.setOnShot((weapon) => playShot(weapon));
+    localSession.setOnShot((weapon) => {
+      playShot(weapon);
+      engine?.addMuzzleFlash();
+    });
     localSession.setOnRoundEnd((winner) => {
       if (winner === 'ct') playWinCt();
       else playWinTer();
+      roundEndTint.value = { winner };
+      setTimeout(() => { roundEndTint.value = null; }, 1500);
     });
     localSession.setOnRoundStart(() => playGo());
     localSession.setOnPickup((type) => {
@@ -175,6 +183,10 @@ async function init() {
       else if (type === 'medkit' || type === 'armor') playPickupMedkit();
     });
     localSession.setOnKill((killerName, victimName) => {
+      showHitMarker.value = true;
+      showKillConfirm.value = true;
+      setTimeout(() => { showHitMarker.value = false; }, 250);
+      setTimeout(() => { showKillConfirm.value = false; }, 900);
       killFeed.value.push({ killerName, victimName, time: Date.now() });
     });
 
@@ -338,6 +350,13 @@ watch(
       </div>
       <GameHUD v-bind="hudState" />
       <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
+      <div v-if="showHitMarker" class="hit-marker" aria-hidden="true">
+        <span class="hit-marker-x" aria-hidden="true">✕</span>
+      </div>
+      <div v-if="showKillConfirm" class="kill-confirm" aria-hidden="true">
+        <span class="kill-confirm-text">+300</span>
+      </div>
+      <div v-if="roundEndTint" class="round-end-tint" :class="roundEndTint.winner" aria-hidden="true" />
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
@@ -571,6 +590,55 @@ watch(
   pointer-events: none;
   z-index: 45;
   background: rgba(180, 0, 0, 0.22);
+}
+.hit-marker {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 46;
+}
+.hit-marker-x {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 8px rgba(0,0,0,0.9), 1px 1px 2px #000;
+}
+.kill-confirm {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 46;
+}
+.kill-confirm-text {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #b8e030;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 1px 1px 2px #000;
+  animation: kill-confirm-pop 0.25s ease-out;
+}
+@keyframes kill-confirm-pop {
+  from { transform: scale(0.6); opacity: 0.6; }
+  to { transform: scale(1); opacity: 1; }
+}
+.round-end-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 47;
+}
+.round-end-tint.ct {
+  background: linear-gradient(180deg, rgba(60, 100, 180, 0.25) 0%, transparent 40%, transparent 60%, rgba(60, 100, 180, 0.2) 100%);
+}
+.round-end-tint.t {
+  background: linear-gradient(180deg, rgba(200, 120, 40, 0.25) 0%, transparent 40%, transparent 60%, rgba(200, 120, 40, 0.2) 100%);
 }
 
 .map-load-error {

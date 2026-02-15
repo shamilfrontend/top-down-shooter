@@ -92,6 +92,7 @@ export class GameEngine {
   private networked: boolean;
   private inputSendInterval = 0;
   private bulletTrails: BulletTrail[] = [];
+  private muzzleFlashUntil = 0;
 
   constructor(options: GameEngineOptions) {
     this.canvas = options.canvas;
@@ -248,6 +249,11 @@ export class GameEngine {
 
   addBulletTrail(x1: number, y1: number, x2: number, y2: number) {
     this.bulletTrails.push({ x1, y1, x2, y2, time: performance.now() });
+  }
+
+  /** Вызвать при выстреле (из onShot или game:event shot) для вспышки у дула. */
+  addMuzzleFlash() {
+    this.muzzleFlashUntil = performance.now() + 80;
   }
 
   setLocalPosition(x: number, y: number, angle?: number) {
@@ -499,15 +505,16 @@ export class GameEngine {
       ];
     }
 
-    // Bullet trails
+    // Bullet trails (ease-out затухание)
     const now = performance.now();
-    const TRAIL_DURATION = 120;
+    const TRAIL_DURATION = 150;
     this.bulletTrails = this.bulletTrails.filter((t) => now - t.time < TRAIL_DURATION);
     this.bulletTrails.forEach((trail) => {
       const age = (now - trail.time) / TRAIL_DURATION;
-      const alpha = 0.5 * (1 - age);
+      const easeOut = 1 - age * age;
+      const alpha = 0.5 * easeOut;
       ctx.strokeStyle = `rgba(255, 220, 100, ${alpha})`;
-      ctx.lineWidth = (1.5 - age) / scale;
+      ctx.lineWidth = (1.5 - age * 0.5) / scale;
       ctx.beginPath();
       ctx.moveTo(trail.x1, trail.y1);
       ctx.lineTo(trail.x2, trail.y2);
@@ -515,7 +522,9 @@ export class GameEngine {
     });
 
     // Рендер персонажей (top-down вид человека)
+    let localPlayerHealth: number | null = null;
     allPlayers.forEach((p) => {
+      if (p.isLocal && p.isAlive) localPlayerHealth = p.health;
       const visible = !this.fogOfWar || this.isVisible(px, py, p.x, p.y);
       if (!visible) return;
 
@@ -742,6 +751,23 @@ export class GameEngine {
         ctx.stroke();
       }
 
+      // Muzzle flash у дула местного игрока
+      if (p.isLocal && p.isAlive && now < this.muzzleFlashUntil) {
+        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+        const muzzleX = p.x + Math.cos(p.angle) * (R + wep.len);
+        const muzzleY = p.y + Math.sin(p.angle) * (R + wep.len);
+        const flashAlpha = (this.muzzleFlashUntil - now) / 80;
+        const r = (4 + 3 * (1 - flashAlpha)) / scale;
+        const g = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, r);
+        g.addColorStop(0, `rgba(255, 240, 180, ${0.9 * flashAlpha})`);
+        g.addColorStop(0.5, `rgba(255, 180, 80, ${0.5 * flashAlpha})`);
+        g.addColorStop(1, 'rgba(255, 120, 0, 0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(muzzleX, muzzleY, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // --- HP bar ---
       if (p.isAlive && p.health < 100) {
         const barW = R * 2.2;
@@ -756,15 +782,58 @@ export class GameEngine {
         ctx.fillRect(barX, barY, barW * hpPct, barH);
       }
 
-      // --- Имя ---
+      // --- Имя (обводка для читаемости) ---
       if (p.isAlive) {
-        ctx.fillStyle = isCT ? 'rgba(120,180,255,0.85)' : 'rgba(255,180,100,0.85)';
         ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
+        ctx.fillStyle = isCT ? 'rgba(120,180,255,0.85)' : 'rgba(255,180,100,0.85)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+        ctx.lineWidth = 2 / scale;
+        ctx.strokeText(p.username, p.x, p.y - R - 12);
         ctx.fillText(p.username, p.x, p.y - R - 12);
       }
     });
+
+    ctx.restore();
+
+    // --- Screen-space: прицел и виньетка ---
+    const { width: sw, height: sh } = this.mapRenderer.getSize();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // Виньетка
+    const vigG = ctx.createRadialGradient(sw / 2, sh / 2, 0, sw / 2, sh / 2, Math.max(sw, sh) * 0.7);
+    vigG.addColorStop(0, 'rgba(0,0,0,0)');
+    vigG.addColorStop(0.6, 'rgba(0,0,0,0)');
+    vigG.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vigG;
+    ctx.fillRect(0, 0, sw, sh);
+
+    // Низкое HP — пульсирующая красная подсветка по краям
+    if (localPlayerHealth != null && localPlayerHealth < 25) {
+      const pulse = 0.15 * (0.5 + 0.5 * Math.sin(now / 180));
+      const lowHpG = ctx.createRadialGradient(sw / 2, sh / 2, 0, sw / 2, sh / 2, Math.max(sw, sh) * 0.65);
+      lowHpG.addColorStop(0, 'rgba(0,0,0,0)');
+      lowHpG.addColorStop(0.5, 'rgba(0,0,0,0)');
+      lowHpG.addColorStop(1, `rgba(140, 0, 0, ${pulse})`);
+      ctx.fillStyle = lowHpG;
+      ctx.fillRect(0, 0, sw, sh);
+    }
+
+    // Прицел по центру
+    const cx = sw / 2;
+    const cy = sh / 2;
+    const ch = 6;
+    const cw = 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(cx - cw / 2, cy - ch / 2, cw, ch);
+    ctx.rect(cx - ch / 2, cy - cw / 2, ch, cw);
+    ctx.fill();
+    ctx.stroke();
 
     ctx.restore();
   }

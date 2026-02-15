@@ -91,6 +91,9 @@ const sortedGameOverPlayers = computed(() => {
 });
 
 const roundStartOverlay = ref<{ round: number } | null>(null);
+const showHitMarker = ref(false);
+const showKillConfirm = ref(false);
+const roundEndTint = ref<{ winner: 'ct' | 't' } | null>(null);
 
 function exitToLobby() {
   roomStore.leaveRoom();
@@ -164,23 +167,34 @@ async function init() {
       round?: number;
       players?: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>;
       trail?: { x1: number; y1: number; x2: number; y2: number };
+      killer?: string;
+      victim?: string;
       killerName?: string;
       victimName?: string;
     }) => {
       if (data.type === 'shot') {
         if (data.weapon) playShot(data.weapon);
+        if (data.playerId === mySocketId) engine?.addMuzzleFlash();
         if (data.trail && engine) engine.addBulletTrail(data.trail.x1, data.trail.y1, data.trail.x2, data.trail.y2);
       } else if (data.type === 'reloadStart') {
         playReload();
       } else if (data.type === 'kill') {
+        if (data.killer === mySocketId) {
+          showHitMarker.value = true;
+          showKillConfirm.value = true;
+          setTimeout(() => { showHitMarker.value = false; }, 250);
+          setTimeout(() => { showKillConfirm.value = false; }, 900);
+        }
         killFeed.value.push({
           killerName: data.killerName ?? '?',
           victimName: data.victimName ?? '?',
           time: Date.now(),
         });
-      } else if (data.type === 'roundEnd') {
+      } else if (data.type === 'roundEnd' && (data.winner === 'ct' || data.winner === 't')) {
         if (data.winner === 'ct') playWinCt();
-        else if (data.winner === 't') playWinTer();
+        else playWinTer();
+        roundEndTint.value = { winner: data.winner };
+        setTimeout(() => { roundEndTint.value = null; }, 1500);
       } else if (data.type === 'roundStart' && typeof data.round === 'number') {
         roundStartOverlay.value = { round: data.round };
         setTimeout(() => { roundStartOverlay.value = null; }, 2200);
@@ -330,6 +344,13 @@ watch(() => route.params.roomId, () => {
         <span class="dead-hint">Наблюдаете за союзником до следующего раунда</span>
       </div>
       <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
+      <div v-if="showHitMarker" class="hit-marker" aria-hidden="true">
+        <span class="hit-marker-x" aria-hidden="true">✕</span>
+      </div>
+      <div v-if="showKillConfirm" class="kill-confirm" aria-hidden="true">
+        <span class="kill-confirm-text">+300</span>
+      </div>
+      <div v-if="roundEndTint" class="round-end-tint" :class="roundEndTint.winner" aria-hidden="true" />
       <div v-if="roundStartOverlay" class="round-start-overlay" aria-hidden="true">
         <span class="round-start-text">Раунд {{ roundStartOverlay.round }}</span>
       </div>
@@ -429,6 +450,55 @@ watch(() => route.params.roomId, () => {
   pointer-events: none;
   z-index: 45;
   background: rgba(180, 0, 0, 0.22);
+}
+.hit-marker {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 46;
+}
+.hit-marker-x {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 8px rgba(0,0,0,0.9), 1px 1px 2px #000;
+}
+.kill-confirm {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 46;
+}
+.kill-confirm-text {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #b8e030;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9), 1px 1px 2px #000;
+  animation: kill-confirm-pop 0.25s ease-out;
+}
+@keyframes kill-confirm-pop {
+  from { transform: scale(0.6); opacity: 0.6; }
+  to { transform: scale(1); opacity: 1; }
+}
+.round-end-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 47;
+}
+.round-end-tint.ct {
+  background: linear-gradient(180deg, rgba(60, 100, 180, 0.25) 0%, transparent 40%, transparent 60%, rgba(60, 100, 180, 0.2) 100%);
+}
+.round-end-tint.t {
+  background: linear-gradient(180deg, rgba(200, 120, 40, 0.25) 0%, transparent 40%, transparent 60%, rgba(200, 120, 40, 0.2) 100%);
 }
 .round-start-overlay {
   position: absolute;
