@@ -59,6 +59,19 @@ const hudState = ref({
 
 const shopOpen = ref(false);
 
+const lastHealth = ref(100);
+const damageFlash = ref(false);
+watch(
+  () => hudState.value.health,
+  (health) => {
+    if (health < lastHealth.value && health > 0) {
+      damageFlash.value = true;
+      setTimeout(() => { damageFlash.value = false; }, 300);
+    }
+    lastHealth.value = health;
+  }
+);
+
 interface KillFeedEntry {
   killerName: string;
   victimName: string;
@@ -309,6 +322,7 @@ watch(
         </div>
       </div>
       <GameHUD v-bind="hudState" />
+      <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
@@ -518,6 +532,14 @@ watch(
   flex: 1;
   position: relative;
   min-height: 400px;
+}
+
+.damage-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 45;
+  background: rgba(180, 0, 0, 0.22);
 }
 
 .map-load-error {

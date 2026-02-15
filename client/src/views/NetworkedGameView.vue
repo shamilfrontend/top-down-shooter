@@ -42,6 +42,19 @@ const hudState = ref({
 
 const shopOpen = ref(false);
 
+const lastHealth = ref(100);
+const damageFlash = ref(false);
+watch(
+  () => hudState.value.health,
+  (health) => {
+    if (health < lastHealth.value && health > 0 && hudState.value.isAlive !== false) {
+      damageFlash.value = true;
+      setTimeout(() => { damageFlash.value = false; }, 300);
+    }
+    lastHealth.value = health;
+  }
+);
+
 const canvasWrapRef = ref<HTMLDivElement | null>(null);
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 
@@ -289,6 +302,7 @@ watch(() => route.params.roomId, () => {
         <span class="dead-text">Вы мертвы</span>
         <span class="dead-hint">Наблюдаете за союзником до следующего раунда</span>
       </div>
+      <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
       <ShopModal
         :show="shopOpen"
         :credits="hudState.credits"
@@ -362,6 +376,13 @@ watch(() => route.params.roomId, () => {
 .dead-hint {
   font-size: 0.9rem;
   color: var(--cs-text-dim);
+}
+.damage-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 45;
+  background: rgba(180, 0, 0, 0.22);
 }
 .kill-feed {
   position: absolute;
