@@ -61,6 +61,7 @@ export interface GameUpdatePayload {
     credits: number;
     weapons: [string | null, string];
     currentSlot: number;
+    reloadEndTime?: number;
   }>;
   pickups: Array<{ id: string; type: string; x: number; y: number }>;
   round: number;
@@ -321,6 +322,16 @@ class GameSession {
         const reduction = 1 - armor * 0.004; // при 100 броне — 60% урона, при 0 — 100%
         const damage = Math.max(1, Math.floor(def.damage * Math.max(0.4, reduction)));
         const armorDamage = Math.floor(damage * 0.5);
+        const hitX = p.x + Math.cos(shotAngle) * hit.dist;
+        const hitY = p.y + Math.sin(shotAngle) * hit.dist;
+        this.io.to(this.roomId).emit('game:event', {
+          type: 'hit',
+          x: hitX,
+          y: hitY,
+          damage,
+          attackerId: p.socketId,
+          victimId: hit.hitId,
+        });
         target.health = Math.max(0, target.health - damage);
         target.armor = Math.max(0, (target.armor ?? 0) - armorDamage);
         if (target.health <= 0) {
@@ -334,6 +345,7 @@ class GameSession {
             victim: hit.hitId,
             killerName: p.username,
             victimName: target.username,
+            weapon: p.weapon,
           });
         }
       }
@@ -497,6 +509,7 @@ class GameSession {
         credits: p.credits,
         weapons: p.weapons,
         currentSlot: p.currentSlot,
+        reloadEndTime: p.reloadEndTime > now ? p.reloadEndTime : undefined,
       })),
       pickups: getActivePickups(this.pickups, now),
       round: this.round,
@@ -533,6 +546,7 @@ class GameSession {
         credits: p.credits,
         weapons: p.weapons,
         currentSlot: p.currentSlot,
+        reloadEndTime: p.reloadEndTime > now ? p.reloadEndTime : undefined,
       })),
       pickups: getActivePickups(this.pickups, now),
       round: this.round,

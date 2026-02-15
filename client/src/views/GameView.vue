@@ -66,6 +66,7 @@ watch(
   (health) => {
     if (health < lastHealth.value && health > 0) {
       damageFlash.value = true;
+      engine?.addCameraShake(1.2);
       setTimeout(() => { damageFlash.value = false; }, 300);
     }
     lastHealth.value = health;
@@ -181,6 +182,9 @@ async function init() {
     localSession.setOnPickup((type) => {
       if (type === 'ammo') playPickupAmmo();
       else if (type === 'medkit' || type === 'armor') playPickupMedkit();
+    });
+    localSession.setOnHit((x, y, damage) => {
+      engine?.addFloatingDamage(x, y, damage);
     });
     localSession.setOnKill((killerName, victimName) => {
       showHitMarker.value = true;

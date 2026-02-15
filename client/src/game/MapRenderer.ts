@@ -309,15 +309,28 @@ export class MapRenderer {
     ctx.restore();
   }
 
-  renderPickups(pickups: Array<{ id: string; type: string; x: number; y: number }>) {
+  renderPickups(pickups: Array<{ id: string; type: string; x: number; y: number }>, playerX?: number, playerY?: number) {
     const { ctx, scale, offsetX, offsetY } = this;
     const time = Date.now() / 1000;
     ctx.save();
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
 
+    const GLOW_RADIUS = 80;
     pickups.forEach((p) => {
       const bob = Math.sin(time * 2.5 + p.x * 0.1) * 1.5;
+      const near = playerX != null && playerY != null && (p.x - playerX) ** 2 + (p.y - playerY) ** 2 < GLOW_RADIUS * GLOW_RADIUS;
+      if (near) {
+        const pulse = 0.25 + 0.12 * Math.sin(time * 3);
+        const glowG = ctx.createRadialGradient(p.x, p.y + bob, 0, p.x, p.y + bob, 35);
+        glowG.addColorStop(0, p.type === 'ammo' ? `rgba(255, 200, 80, ${pulse})` : `rgba(100, 180, 255, ${pulse})`);
+        glowG.addColorStop(0.6, p.type === 'ammo' ? 'rgba(255, 180, 50, 0)' : 'rgba(80, 140, 200, 0)');
+        glowG.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glowG;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + bob, 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       if (p.type === 'ammo') {
         // === Ящик с патронами — заметный, яркие гильзы ===

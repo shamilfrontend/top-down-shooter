@@ -26,6 +26,7 @@ export interface ServerPlayer {
   credits?: number;
   weapons?: [string | null, string];
   currentSlot?: number;
+  reloadEndTime?: number;
 }
 
 const FOG_RADIUS = 756;
@@ -44,7 +45,18 @@ const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string
 interface BulletTrail {
   x1: number; y1: number;
   x2: number; y2: number;
-  time: number; // ms when created
+  time: number;
+}
+
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  time: number;
+  type: 'shell' | 'smoke' | 'spark';
+}
+
+interface FloatingDamage {
+  x: number; y: number; damage: number; time: number;
 }
 
 export interface GameEngineOptions {
@@ -93,6 +105,10 @@ export class GameEngine {
   private inputSendInterval = 0;
   private bulletTrails: BulletTrail[] = [];
   private muzzleFlashUntil = 0;
+  private cameraShake = 0;
+  private particles: Particle[] = [];
+  private floatingDamages: FloatingDamage[] = [];
+  private deathAnimEnd = new Map<string, number>();
 
   constructor(options: GameEngineOptions) {
     this.canvas = options.canvas;
@@ -254,6 +270,45 @@ export class GameEngine {
   /** Вызвать при выстреле (из onShot или game:event shot) для вспышки у дула. */
   addMuzzleFlash() {
     this.muzzleFlashUntil = performance.now() + 80;
+    this.cameraShake = Math.max(this.cameraShake, 2.5);
+    const me = this.lastServerState.find((p) => p.id === this.localPlayerId) ?? this.players.find((p) => p.id === this.localPlayerId);
+    const R = PLAYER_RADIUS * 1.3;
+    const wep = WEAPON_VISUALS[me?.weapon ?? 'usp'] ?? WEAPON_VISUALS['usp'];
+    const ax = this.localState.x + Math.cos(this.localState.angle) * (R + wep.len);
+    const ay = this.localState.y + Math.sin(this.localState.angle) * (R + wep.len);
+    const perpX = -Math.sin(this.localState.angle);
+    const perpY = Math.cos(this.localState.angle);
+    for (let i = 0; i < 3; i++) {
+      this.particles.push({
+        x: ax + perpX * (4 * (i - 1)),
+        y: ay + perpY * (4 * (i - 1)),
+        vx: perpX * 80 + (Math.random() - 0.5) * 40,
+        vy: -60 - Math.random() * 40,
+        time: performance.now(),
+        type: 'shell',
+      });
+    }
+    for (let i = 0; i < 2; i++) {
+      this.particles.push({ x: ax, y: ay, vx: 0, vy: 0, time: performance.now(), type: 'smoke' });
+    }
+  }
+
+  addCameraShake(intensity: number) {
+    this.cameraShake = Math.max(this.cameraShake, intensity);
+  }
+
+  addFloatingDamage(x: number, y: number, damage: number) {
+    this.floatingDamages.push({ x, y, damage, time: performance.now() });
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + Math.random();
+      this.particles.push({
+        x, y,
+        vx: Math.cos(a) * 50,
+        vy: -30 - Math.random() * 40,
+        time: performance.now(),
+        type: 'spark',
+      });
+    }
   }
 
   setLocalPosition(x: number, y: number, angle?: number) {
@@ -268,7 +323,7 @@ export class GameEngine {
     this.fogOfWar = enabled;
   }
 
-  getLocalPlayerState(): { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; isAlive?: boolean } | null {
+  getLocalPlayerState(): { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; isAlive?: boolean; reloadEndTime?: number } | null {
     const me = this.lastServerState.find((p) => p.id === this.localPlayerId);
     if (!me) return null;
     return {
@@ -283,6 +338,7 @@ export class GameEngine {
       weapons: me.weapons,
       currentSlot: me.currentSlot,
       isAlive: me.isAlive,
+      reloadEndTime: me.reloadEndTime,
     };
   }
 
@@ -383,7 +439,11 @@ export class GameEngine {
     const view = this.getViewPosition();
     this.cameraX += (view.x - this.cameraX) * CAMERA_LERP;
     this.cameraY += (view.y - this.cameraY) * CAMERA_LERP;
-    this.mapRenderer.setCamera(this.cameraX, this.cameraY, this.scale);
+    this.cameraShake *= 0.88;
+    if (this.cameraShake < 0.1) this.cameraShake = 0;
+    const shakeX = this.cameraShake * (Math.random() * 2 - 1);
+    const shakeY = this.cameraShake * (Math.random() * 2 - 1);
+    this.mapRenderer.setCamera(this.cameraX + shakeX, this.cameraY + shakeY, this.scale);
 
     if (this.networked && this.onHUDUpdate) {
       const local = this.getLocalPlayerState();
@@ -423,7 +483,7 @@ export class GameEngine {
     const scale = this.scale;
 
     mapRenderer.render();
-    mapRenderer.renderPickups(this.pickups);
+    mapRenderer.renderPickups(this.pickups, px, py);
 
     ctx.save();
     mapRenderer.applyWorldTransform(ctx);
@@ -521,18 +581,67 @@ export class GameEngine {
       ctx.stroke();
     });
 
+    // Частицы (гильзы, дым, искры)
+    const PARTICLE_DURATION = 1200;
+    this.particles = this.particles.filter((pt) => now - pt.time < PARTICLE_DURATION);
+    this.particles.forEach((pt) => {
+      const age = (now - pt.time) / 1000;
+      const gravity = pt.type === 'shell' ? 120 : 0;
+      const x = pt.x + pt.vx * age;
+      const y = pt.y + pt.vy * age + (gravity * age * age) / 2;
+      const alpha = 1 - (now - pt.time) / PARTICLE_DURATION;
+      if (pt.type === 'shell') {
+        ctx.fillStyle = `rgba(220, 180, 80, ${alpha})`;
+        ctx.fillRect(x - 1.5, y - 2.5, 3, 5);
+      } else if (pt.type === 'smoke') {
+        const r = 4 + age * 8;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(120,120,120,${0.3 * alpha})`);
+        g.addColorStop(1, 'rgba(80,80,80,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pt.type === 'spark') {
+        ctx.fillStyle = `rgba(255, 200, 100, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // Плавающий урон
+    const FLOAT_DURATION = 900;
+    this.floatingDamages = this.floatingDamages.filter((fd) => now - fd.time < FLOAT_DURATION);
+    this.floatingDamages.forEach((fd) => {
+      const age = (now - fd.time) / FLOAT_DURATION;
+      const y = fd.y - age * 25;
+      const alpha = 1 - age;
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.lineWidth = 2 / scale;
+      ctx.strokeText(`-${fd.damage}`, fd.x, y);
+      ctx.fillStyle = `rgba(255, 220, 80, ${alpha})`;
+      ctx.fillText(`-${fd.damage}`, fd.x, y);
+    });
+
     // Рендер персонажей (top-down вид человека)
     let localPlayerHealth: number | null = null;
     allPlayers.forEach((p) => {
       if (p.isLocal && p.isAlive) localPlayerHealth = p.health;
+      if (!p.isAlive && !this.deathAnimEnd.has(p.id)) this.deathAnimEnd.set(p.id, now + 400);
       const visible = !this.fogOfWar || this.isVisible(px, py, p.x, p.y);
       if (!visible) return;
 
       const isCT = p.team === 'ct';
-      const R = PLAYER_RADIUS * 1.3; // визуально на 30% крупнее, физика без изменений
+      const R = PLAYER_RADIUS * 1.3;
       const a = p.angle;
-      const cosA = Math.cos(a);
-      const sinA = Math.sin(a);
+      const deathEnd = this.deathAnimEnd.get(p.id);
+      const deathProgress = deathEnd && now < deathEnd ? 1 - (deathEnd - now) / 400 : 1;
+      const deathRotate = !p.isAlive && deathProgress < 1 ? -deathProgress * Math.PI * 0.5 : 0;
+      const deathOffsetY = !p.isAlive && deathProgress < 1 ? deathProgress * 8 : 0;
 
       // Цвета экипировки
       const torsoColor = !p.isAlive ? '#3a3a3a' : isCT ? '#2b4a7a' : '#5c6b3a';
@@ -552,6 +661,8 @@ export class GameEngine {
 
       ctx.save();
       ctx.translate(p.x, p.y);
+      if (deathRotate !== 0) ctx.rotate(deathRotate);
+      ctx.translate(0, deathOffsetY);
       ctx.rotate(a);
 
       if (p.isAlive) {
@@ -818,6 +929,17 @@ export class GameEngine {
       lowHpG.addColorStop(0.5, 'rgba(0,0,0,0)');
       lowHpG.addColorStop(1, `rgba(140, 0, 0, ${pulse})`);
       ctx.fillStyle = lowHpG;
+      ctx.fillRect(0, 0, sw, sh);
+    }
+
+    // Эффект зума — затемнение по краям при сильном приближении
+    if (this.scale > 1.2) {
+      const zoomVig = (this.scale - 1.2) / (MAX_SCALE - 1.2);
+      const zg = ctx.createRadialGradient(sw / 2, sh / 2, sw * 0.2, sw / 2, sh / 2, Math.max(sw, sh) * 0.6);
+      zg.addColorStop(0, 'rgba(0,0,0,0)');
+      zg.addColorStop(0.7, 'rgba(0,0,0,0)');
+      zg.addColorStop(1, `rgba(0,0,0,${0.35 * zoomVig})`);
+      ctx.fillStyle = zg;
       ctx.fillRect(0, 0, sw, sh);
     }
 

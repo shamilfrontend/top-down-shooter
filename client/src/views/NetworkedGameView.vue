@@ -49,6 +49,7 @@ watch(
   (health) => {
     if (health < lastHealth.value && health > 0 && hudState.value.isAlive !== false) {
       damageFlash.value = true;
+      engine?.addCameraShake(1.2);
       setTimeout(() => { damageFlash.value = false; }, 300);
     }
     lastHealth.value = health;
@@ -67,12 +68,17 @@ const gameOver = ref<{ winner: 'ct' | 't'; players: Array<{ id: string; username
 interface KillFeedEntry {
   killerName: string;
   victimName: string;
+  weapon?: string;
   time: number;
 }
 const killFeed = ref<KillFeedEntry[]>([]);
 const KILL_FEED_DURATION_MS = 5000;
 const KILL_FEED_MAX = 6;
 const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
+function weaponShort(w?: string): string {
+  if (!w) return '';
+  return w === 'usp' ? 'USP' : w.toUpperCase();
+}
 
 const scoreboardOpen = ref(false);
 const pauseOpen = ref(false);
@@ -171,11 +177,18 @@ async function init() {
       victim?: string;
       killerName?: string;
       victimName?: string;
+      x?: number;
+      y?: number;
+      damage?: number;
+      attackerId?: string;
+      victimId?: string;
     }) => {
       if (data.type === 'shot') {
         if (data.weapon) playShot(data.weapon);
         if (data.playerId === mySocketId) engine?.addMuzzleFlash();
         if (data.trail && engine) engine.addBulletTrail(data.trail.x1, data.trail.y1, data.trail.x2, data.trail.y2);
+      } else if (data.type === 'hit' && typeof data.x === 'number' && typeof data.y === 'number' && typeof data.damage === 'number') {
+        engine?.addFloatingDamage(data.x, data.y, data.damage);
       } else if (data.type === 'reloadStart') {
         playReload();
       } else if (data.type === 'kill') {
@@ -188,6 +201,7 @@ async function init() {
         killFeed.value.push({
           killerName: data.killerName ?? '?',
           victimName: data.victimName ?? '?',
+          weapon: data.weapon,
           time: Date.now(),
         });
       } else if (data.type === 'roundEnd' && (data.winner === 'ct' || data.winner === 't')) {
@@ -294,16 +308,18 @@ watch(() => route.params.roomId, () => {
       @mouseleave="canvasHovered = false"
     >
       <canvas ref="canvasRef" class="game-canvas" />
-      <div v-if="killFeedVisible.length" class="kill-feed">
-        <div
-          v-for="(entry, i) in killFeedVisible"
-          :key="i"
-          class="kill-feed-entry"
-        >
-          <span class="kill-feed-killer">{{ entry.killerName }}</span>
-          <span class="kill-feed-sep"> → </span>
-          <span class="kill-feed-victim">{{ entry.victimName }}</span>
-        </div>
+      <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
+        <TransitionGroup name="kill-feed-slide">
+          <div
+            v-for="(entry, i) in killFeedVisible"
+            :key="entry.time + i"
+            class="kill-feed-entry"
+          >
+            <span class="kill-feed-killer">{{ entry.killerName }}</span>
+            <span class="kill-feed-weapon">{{ weaponShort(entry.weapon) }}</span>
+            <span class="kill-feed-victim">{{ entry.victimName }}</span>
+          </div>
+        </TransitionGroup>
       </div>
       <div v-if="scoreboardOpen" class="scoreboard-overlay">
         <div class="scoreboard panel-cs">
@@ -342,6 +358,9 @@ watch(() => route.params.roomId, () => {
       <div v-if="hudState.isAlive === false" class="dead-overlay">
         <span class="dead-text">Вы мертвы</span>
         <span class="dead-hint">Наблюдаете за союзником до следующего раунда</span>
+        <span v-if="hudState.roundPhase === 'ended' && hudState.roundTimeLeft != null" class="dead-respawn-timer">
+          След. раунд через {{ Math.floor((hudState.roundTimeLeft ?? 0) / 60) }}:{{ String((hudState.roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
+        </span>
       </div>
       <div v-if="damageFlash" class="damage-flash" aria-hidden="true" />
       <div v-if="showHitMarker" class="hit-marker" aria-hidden="true">
@@ -443,6 +462,12 @@ watch(() => route.params.roomId, () => {
 .dead-hint {
   font-size: 0.9rem;
   color: var(--cs-text-dim);
+}
+.dead-respawn-timer {
+  margin-top: 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--cs-orange);
 }
 .damage-flash {
   position: absolute;
@@ -585,12 +610,25 @@ watch(() => route.params.roomId, () => {
   color: var(--cs-orange);
   font-weight: 600;
 }
-.kill-feed-sep {
+.kill-feed-weapon {
+  margin: 0 6px;
+  font-size: 0.75em;
   color: var(--cs-text-dim);
-  margin: 0 4px;
 }
 .kill-feed-victim {
   color: #ccc;
+}
+.kill-feed-slide-enter-active,
+.kill-feed-slide-leave-active {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.kill-feed-slide-enter-from {
+  transform: translateX(24px);
+  opacity: 0;
+}
+.kill-feed-slide-leave-to {
+  transform: translateX(-12px);
+  opacity: 0;
 }
 .scoreboard-overlay {
   position: absolute;

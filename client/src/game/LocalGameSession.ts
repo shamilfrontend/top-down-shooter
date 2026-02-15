@@ -67,6 +67,7 @@ export interface LocalGameState {
     credits: number;
     weapons: [string | null, string];
     currentSlot: number;
+    reloadEndTime?: number;
   }>;
   pickups: Array<{ id: string; type: string; x: number; y: number }>;
   round: number;
@@ -95,6 +96,7 @@ export class LocalGameSession {
   private onRoundStart?: () => void;
   private onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void;
   private onKill?: (killerName: string, victimName: string) => void;
+  private onHit?: (x: number, y: number, damage: number) => void;
 
   constructor(map: MapConfig, options?: LocalGameSessionOptions) {
     this.map = map;
@@ -241,6 +243,10 @@ export class LocalGameSession {
     this.onKill = cb;
   }
 
+  setOnHit(cb: (x: number, y: number, damage: number) => void) {
+    this.onHit = cb;
+  }
+
   setInput(id: string, input: InputState) {
     const p = this.players.get(id);
     if (p) p.lastInput = input;
@@ -293,6 +299,9 @@ export class LocalGameSession {
         const reduction = 1 - armor * 0.004;
         const damage = Math.max(1, Math.floor(def.damage * Math.max(0.4, reduction)));
         const armorDamage = Math.floor(damage * 0.5);
+        const hitX = p.x + Math.cos(shotAngle) * hit.dist;
+        const hitY = p.y + Math.sin(shotAngle) * hit.dist;
+        this.onHit?.(hitX, hitY, damage);
         target.health = Math.max(0, target.health - damage);
         target.armor = Math.max(0, (target.armor ?? 0) - armorDamage);
         if (target.health <= 0) {
@@ -515,6 +524,7 @@ export class LocalGameSession {
         credits: p.credits,
         weapons: [...p.weapons],
         currentSlot: p.currentSlot,
+        reloadEndTime: p.reloadEndTime > now ? p.reloadEndTime : undefined,
       })),
       pickups: getActivePickups(this.pickups, now),
       round: this.round,

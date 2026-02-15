@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed, onUnmounted } from 'vue';
 
 const props = defineProps<{
   health: number;
@@ -18,7 +18,11 @@ const props = defineProps<{
   roundTimeLeft?: number;
   roundPhase?: 'playing' | 'ended';
   roundsToWin?: number;
+  reloadEndTime?: number;
 }>();
+
+const RELOAD_MS: Record<string, number> = { usp: 2200, m4: 3100, ak47: 2500 };
+const MAGAZINE_SIZE: Record<string, number> = { usp: 12, m4: 30, ak47: 30 };
 
 const weaponNames: Record<string, string> = {
   usp: 'USP-S',
@@ -28,6 +32,49 @@ const weaponNames: Record<string, string> = {
 
 const currentWeaponImgFailed = ref(false);
 watch(() => props.weapon, () => { currentWeaponImgFailed.value = false; });
+
+// Плавная полоска HP (интерполяция за ~0.3 с)
+const displayedHealth = ref(props.health);
+let healthRafId: number | null = null;
+watch(() => props.health, (newVal) => {
+  const start = displayedHealth.value;
+  const startTime = performance.now();
+  const duration = 280;
+  if (healthRafId) cancelAnimationFrame(healthRafId);
+  function step() {
+    const t = Math.min(1, (performance.now() - startTime) / duration);
+    displayedHealth.value = Math.round(start + (newVal - start) * t);
+    if (t < 1) healthRafId = requestAnimationFrame(step);
+  }
+  healthRafId = requestAnimationFrame(step);
+});
+onUnmounted(() => { if (healthRafId) cancelAnimationFrame(healthRafId); });
+
+// Индикатор перезарядки (тик каждые 50 ms)
+const reloadTick = ref(0);
+let reloadInterval: ReturnType<typeof setInterval> | null = null;
+watch([() => props.reloadEndTime, () => props.weapon], ([end]) => {
+  if (reloadInterval) clearInterval(reloadInterval);
+  reloadInterval = null;
+  if (!end || Date.now() >= end) { reloadTick.value = 0; return; }
+  reloadInterval = setInterval(() => {
+    reloadTick.value = Date.now();
+    if (Date.now() >= (end as number)) {
+      if (reloadInterval) clearInterval(reloadInterval);
+      reloadInterval = null;
+    }
+  }, 50);
+});
+onUnmounted(() => { if (reloadInterval) clearInterval(reloadInterval); });
+const reloadProgress = computed(() => {
+  reloadTick.value;
+  if (!props.reloadEndTime || Date.now() > props.reloadEndTime) return null;
+  const ms = RELOAD_MS[props.weapon] ?? 2000;
+  return Math.min(1, 1 - (props.reloadEndTime - Date.now()) / ms);
+});
+
+const magazineSize = computed(() => MAGAZINE_SIZE[props.weapon] ?? 12);
+const lowAmmo = computed(() => props.ammo > 0 && props.ammo < magazineSize.value * 0.25);
 
 function weaponImageSrc(id: string): string {
   const filename = id === 'usp' ? 'gun' : id;
@@ -130,8 +177,14 @@ function isSelected(key: number): boolean {
                 />
                 {{ weaponNames[weapon] ?? weapon }}
               </span>
-              <span class="ammo" :class="{ empty: ammo === 0 }">{{ ammo }} / {{ ammoReserve }}</span>
-              <span v-if="ammo === 0 && ammoReserve > 0" class="ammo-hint">R — перезарядка</span>
+              <span class="ammo" :class="{ empty: ammo === 0, lowAmmo }">{{ ammo }} / {{ ammoReserve }}</span>
+              <span v-if="reloadProgress != null" class="reload-indicator">
+                <span class="reload-bar-wrap">
+                  <span class="reload-bar-fill" :style="{ width: `${(reloadProgress ?? 0) * 100}%` }" />
+                </span>
+                <span class="reload-text">Перезарядка...</span>
+              </span>
+              <span v-else-if="ammo === 0 && ammoReserve > 0" class="ammo-hint">R — перезарядка</span>
             </div>
           </div>
         </div>
@@ -143,10 +196,10 @@ function isSelected(key: number): boolean {
             <div class="hp-bar-cs">
               <div
                 class="hp-fill-cs"
-                :class="health > 66 ? 'high' : health > 33 ? 'mid' : 'low'"
-                :style="{ width: `${health}%` }"
+                :class="displayedHealth > 66 ? 'high' : displayedHealth > 33 ? 'mid' : 'low'"
+                :style="{ width: `${Math.min(100, displayedHealth)}%` }"
               />
-              <span class="hp-armor-num">{{ health }}</span>
+              <span class="hp-armor-num">{{ displayedHealth }}</span>
             </div>
           </div>
           <div class="hp-armor-item">
@@ -342,6 +395,38 @@ function isSelected(key: number): boolean {
 }
 .ammo.empty {
   color: #c03030;
+}
+.ammo.lowAmmo {
+  color: #e8a030;
+  animation: ammo-pulse 1s ease-in-out infinite;
+}
+@keyframes ammo-pulse {
+  50% { opacity: 0.85; }
+}
+.reload-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cs-text-dim);
+  margin-top: 2px;
+}
+.reload-bar-wrap {
+  width: 60px;
+  height: 4px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.reload-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--cs-orange);
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+.reload-text {
+  font-size: 10px;
 }
 .ammo-hint {
   font-size: 11px;
