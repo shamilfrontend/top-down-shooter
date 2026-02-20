@@ -103,7 +103,7 @@ export function computeBotAction(
   map: MapLike,
   difficulty: BotDifficulty,
   tick: number,
-  options?: { pickups?: { x: number; y: number; type: string }[]; ammo?: number; ammoReserve?: number; health?: number; armor?: number }
+  options?: { pickups?: { x: number; y: number; type: string }[]; ammo?: number; ammoReserve?: number; health?: number; armor?: number; weaponRange?: number }
 ): { input: GameInput; angle: number; shoot: boolean; wantReload: boolean } {
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
   const reactionChance = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.6 : 0.9;
@@ -132,7 +132,8 @@ export function computeBotAction(
   let huntTargetX = botX;
   let huntTargetY = botY;
   let hasHuntTarget = false;
-  const pickupTarget = medkitPickup ?? ammoPickup ?? armorPickup;
+  // Когда патроны кончились — в первую очередь ищем патроны по карте
+  const pickupTarget = (totalAmmo === 0 && ammoPickup) ? ammoPickup : (medkitPickup ?? ammoPickup ?? armorPickup);
   if (pickupTarget) {
     huntTargetX = pickupTarget.x;
     huntTargetY = pickupTarget.y;
@@ -166,13 +167,16 @@ export function computeBotAction(
   const currentReserve = options?.ammoReserve ?? 999;
   const wantReload = currentAmmo === 0 && currentReserve > 0;
 
+  const weaponRange = options?.weaponRange ?? 420;
+
   if (target && Math.random() < reactionChance && currentAmmo > 0) {
     const toTarget = Math.atan2(target.y - botY, target.x - botX);
     const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
     angle = toTarget + err;
 
     const diff = Math.abs(angleDiff(botAngle, angle));
-    if (diff < 0.15) shoot = true;
+    // Стрелять только если враг в пределах дальности оружия
+    if (diff < 0.15 && minDist <= weaponRange) shoot = true;
 
     if (minDist > 250 && Math.random() < moveTowardsTargetFreq) {
       const moveAngle = toTarget;
@@ -198,7 +202,8 @@ export function computeBotAction(
       const dx = huntTargetX - botX;
       const dy = huntTargetY - botY;
       const dist = Math.hypot(dx, dy);
-      if (dist > 50) {
+      /** Радиус подбора пикапа 25; бот идёт пока не подойдёт ближе */
+      if (dist > 22) {
         const moveAngle = Math.atan2(dy, dx);
         const mx = Math.cos(moveAngle);
         const my = Math.sin(moveAngle);

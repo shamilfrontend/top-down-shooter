@@ -16,7 +16,7 @@ const router = useRouter();
 const { fetchMap } = useMaps();
 const { connect, socket, pingMs, isConnected } = useSocket();
 const roomStore = useRoomStore();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute, musicVolume, setMusicVolume, startGameMusic, stopGameMusic, tryPlayGameMusic } = useGameAudio();
 const lastRound = ref<number | null>(null);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -277,6 +277,7 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 }
 
 onMounted(() => {
+  startGameMusic();
   init();
   killFeedInterval = setInterval(() => {
     const now = Date.now();
@@ -287,6 +288,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  stopGameMusic();
   window.removeEventListener('keydown', onScoreboardKey);
   window.removeEventListener('beforeunload', onBeforeUnload);
   if (killFeedInterval) clearInterval(killFeedInterval);
@@ -307,6 +309,16 @@ watch(() => route.params.roomId, () => {
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин, колёсико — зум, ESC — пауза</p>
       <div class="game-header-actions">
         <span v-if="pingMs != null" class="ping-display" title="Задержка до сервера">{{ pingMs }} ms</span>
+        <label v-if="!isMuted" class="music-volume-wrap" title="Громкость музыки">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            :value="Math.round(musicVolume * 100)"
+            class="music-volume-slider"
+            @input="setMusicVolume(Number(($event.target as HTMLInputElement).value) / 100)"
+          >
+        </label>
         <button
           type="button"
           class="btn-icon"
@@ -332,6 +344,7 @@ watch(() => route.params.roomId, () => {
       :class="{ 'cursor-none': canvasHovered }"
       @mouseenter="canvasHovered = true"
       @mouseleave="canvasHovered = false"
+      @click.once="tryPlayGameMusic"
     >
       <canvas ref="canvasRef" class="game-canvas" />
       <div v-if="killFeedVisible.length" class="kill-feed kill-feed-cs">
@@ -745,6 +758,16 @@ watch(() => route.params.roomId, () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.music-volume-wrap {
+  display: flex;
+  align-items: center;
+}
+.music-volume-slider {
+  width: 72px;
+  height: 6px;
+  accent-color: var(--cs-orange);
+  cursor: pointer;
 }
 .ping-display {
   font-size: 12px;

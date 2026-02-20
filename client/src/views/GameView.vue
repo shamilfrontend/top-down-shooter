@@ -35,7 +35,7 @@ const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
 const botCount = ref<number>(loadBotCount());
 const selectedMapId = ref<string>((route.params.mapId as string) || localStorage.getItem(TRAINING_MAP_KEY) || 'dust2');
 const { fetchMap, fetchMapsList, mapsList } = useMaps();
-const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute } = useGameAudio();
+const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute, musicVolume, setMusicVolume, startGameMusic, stopGameMusic, tryPlayGameMusic } = useGameAudio();
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const mapLoadError = ref<string | null>(null);
@@ -166,9 +166,7 @@ async function init() {
         localSession?.setAngle('local', state.angle);
       },
       onShoot: () => localSession?.shoot('local'),
-      onReload: () => {
-        if (localSession?.reload('local')) playReload();
-      },
+      onReload: () => localSession?.reload('local'),
       onSwitchWeapon: (slot) => localSession?.switchWeapon('local', slot),
       onOpenShop: () => { shopOpen.value = !shopOpen.value; },
       onHUDUpdate: (s) => { hudState.value = { ...s, roundsToWin: TRAINING_ROUNDS_TO_WIN }; },
@@ -190,6 +188,7 @@ async function init() {
       playShot(weapon);
       engine?.addMuzzleFlash();
     });
+    localSession.setOnReloadStart(() => playReload());
     localSession.setOnRoundEnd((winner) => {
       if (winner === 'ct') playWinCt();
       else playWinTer();
@@ -238,6 +237,7 @@ function exitGame() {
 
 let killFeedInterval: ReturnType<typeof setInterval> | null = null;
 onMounted(async () => {
+  startGameMusic();
   await fetchMapsList();
   init();
   killFeedInterval = setInterval(() => {
@@ -248,6 +248,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  stopGameMusic();
   if (killFeedInterval) clearInterval(killFeedInterval);
   window.removeEventListener('keydown', onScoreboardKey);
   localSession?.stop();
@@ -304,6 +305,16 @@ watch(
       </div>
       <p class="hint">WASD — движение, мышь — прицел, ЛКМ — стрельба, R — перезарядка, 1/2 — оружие, B — магазин, колёсико — зум</p>
       <div class="game-header-actions">
+        <label v-if="!isMuted" class="music-volume-wrap" title="Громкость музыки">
+          <input
+            type="range"
+            min="0"
+            max="100"
+            :value="Math.round(musicVolume * 100)"
+            class="music-volume-slider"
+            @input="setMusicVolume(Number(($event.target as HTMLInputElement).value) / 100)"
+          >
+        </label>
         <button
           type="button"
           class="btn-icon"
@@ -329,6 +340,7 @@ watch(
       :class="{ 'cursor-none': canvasHovered }"
       @mouseenter="canvasHovered = true"
       @mouseleave="canvasHovered = false"
+      @click.once="tryPlayGameMusic"
     >
       <div v-if="mapLoadError" class="map-load-error">{{ mapLoadError }}</div>
       <canvas ref="canvasRef" class="game-canvas" />
@@ -461,6 +473,16 @@ watch(
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+.music-volume-wrap {
+  display: flex;
+  align-items: center;
+}
+.music-volume-slider {
+  width: 72px;
+  height: 6px;
+  accent-color: var(--cs-orange);
+  cursor: pointer;
 }
 .btn-icon {
   padding: 0.35rem 0.5rem;

@@ -35,6 +35,18 @@ const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
 const DEFAULT_MIN_SCALE = 0.75; // минимальный зум — персонаж выглядит крупнее
 
+const SPRITE_BASE = '/assets/kenney_top-down-shooter/PNG';
+const SPRITE_POSES = ['stand', 'gun', 'hold', 'machine', 'reload', 'silencer'] as const;
+type SpritePose = (typeof SPRITE_POSES)[number];
+
+// Оружие → поза спрайта Kenney
+const WEAPON_TO_POSE: Record<string, SpritePose> = {
+  usp: 'silencer',
+  m4: 'machine',
+  ak47: 'machine',
+  awp: 'gun',
+};
+
 // Размеры оружия для отрисовки (длина ствола от центра персонажа)
 const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string }> = {
   usp: { len: 20, width: 3, color: '#aaa' },
@@ -111,6 +123,9 @@ export class GameEngine {
   private floatingDamages: FloatingDamage[] = [];
   private deathAnimEnd = new Map<string, number>();
 
+  private spriteSheets: Record<'ct' | 't', Record<string, HTMLImageElement>> = { ct: {}, t: {} };
+  private spritesLoaded = false;
+
   constructor(options: GameEngineOptions) {
     this.canvas = options.canvas;
     const ctx = this.canvas.getContext('2d');
@@ -146,6 +161,43 @@ export class GameEngine {
     this.cameraY = this.localState.y;
 
     this.setupInput();
+    this.loadSprites();
+  }
+
+  private async loadSprites(): Promise<void> {
+    const ctPrefix = `${SPRITE_BASE}/special_forces/soldier1_`;
+    const tPrefix = `${SPRITE_BASE}/terrorists/survivor1_`;
+    const loadSet = async (
+      prefix: string,
+      team: 'ct' | 't'
+    ): Promise<boolean> => {
+      let ok = true;
+      for (const pose of SPRITE_POSES) {
+        const img = new Image();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error(`Failed to load ${prefix}${pose}.png`));
+            img.src = `${prefix}${pose}.png`;
+          });
+          this.spriteSheets[team][pose] = img;
+        } catch {
+          ok = false;
+        }
+      }
+      return ok;
+    };
+    const [ctOk, tOk] = await Promise.all([loadSet(ctPrefix, 'ct'), loadSet(tPrefix, 't')]);
+    this.spritesLoaded = ctOk && tOk;
+  }
+
+  private getSpritePose(
+    weapon: string,
+    reloadEndTime: number | undefined,
+    now: number
+  ): SpritePose {
+    if (reloadEndTime != null && now < reloadEndTime) return 'reload';
+    return WEAPON_TO_POSE[weapon] ?? 'gun';
   }
 
   private setupInput() {
@@ -525,10 +577,11 @@ export class GameEngine {
       ctx.fillRect(-1000, -1000, map.width + 2000, map.height + 2000);
     }
 
-    let allPlayers: Array<Player & { isLocal?: boolean }>;
+    type PlayerForRender = Player & { isLocal?: boolean; reloadEndTime?: number };
+    let allPlayers: PlayerForRender[];
 
     if (this.networked) {
-      const others: (Player & { isLocal?: boolean })[] = [];
+      const others: PlayerForRender[] = [];
       this.serverPlayers.forEach((buf, id) => {
         if (id === this.localPlayerId) return;
         const p = buf.get(80);
@@ -538,7 +591,8 @@ export class GameEngine {
             userId: undefined,
             ammoReserve: p.ammoReserve,
             isLocal: false,
-          } as Player & { isLocal?: boolean });
+            reloadEndTime: p.reloadEndTime,
+          });
         }
       });
       const me = this.lastServerState.find((p) => p.id === this.localPlayerId);
@@ -559,7 +613,8 @@ export class GameEngine {
           kills: me?.kills ?? 0,
           deaths: me?.deaths ?? 0,
           isLocal: true,
-        } as Player & { isLocal?: boolean },
+          reloadEndTime: me?.reloadEndTime,
+        },
       ];
     } else {
       allPlayers = [
@@ -580,7 +635,7 @@ export class GameEngine {
           kills: 0,
           deaths: 0,
           isLocal: true,
-        } as Player & { isLocal?: boolean },
+        } as PlayerForRender,
       ];
     }
 
@@ -682,164 +737,155 @@ export class GameEngine {
       ctx.translate(p.x, p.y);
       if (deathRotate !== 0) ctx.rotate(deathRotate);
       ctx.translate(0, deathOffsetY);
+      // Спрайт Kenney: ориентация «по направлению стрельбы» (без доп. сдвига)
       ctx.rotate(a);
 
       if (p.isAlive) {
-        const bootColor = isCT ? '#1a2840' : '#2d3520';
-        const legOffsetX = -R * 0.38;
-        const legSpreadY = R * 0.52;
-        // Ноги: бедро + стопа (читаются как две ноги)
-        ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
-        ctx.beginPath();
-        ctx.ellipse(legOffsetX, -legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = bootColor;
-        ctx.beginPath();
-        ctx.ellipse(legOffsetX - R * 0.12, -legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
-        ctx.beginPath();
-        ctx.ellipse(legOffsetX, legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = bootColor;
-        ctx.beginPath();
-        ctx.ellipse(legOffsetX - R * 0.12, legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const team: 'ct' | 't' = isCT ? 'ct' : 't';
+        const pose = this.getSpritePose(p.weapon, p.reloadEndTime, now);
+        const img = this.spritesLoaded ? this.spriteSheets[team][pose] : undefined;
+        const useSprite = img != null && img.complete && img.naturalWidth > 0;
 
-        // Торс: плечи шире, форма ближе к туловищу
-        ctx.fillStyle = torsoBorder;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.7, R * 0.6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = torsoColor;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.66, R * 0.56, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = gearColor;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, R * 0.44, R * 0.36, 0, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // --- Руки ---
-        const armLen = R * 0.55;
-        const handR = R * 0.15;
-        // Левая рука (не оружейная) — отведена
-        const lArmAngle = -Math.PI * 0.4;
-        const lArmX = Math.cos(lArmAngle) * armLen;
-        const lArmY = Math.sin(lArmAngle) * armLen;
-        ctx.fillStyle = skinColor;
-        ctx.beginPath();
-        ctx.arc(lArmX, lArmY, handR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        // Предплечье
-        ctx.strokeStyle = torsoColor;
-        ctx.lineWidth = R * 0.16;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(0, -R * 0.4);
-        ctx.lineTo(lArmX, lArmY);
-        ctx.stroke();
-
-        // Правая рука (оружейная) — вытянута вперёд
-        const rArmAngle = Math.PI * 0.2;
-        const rArmDist = armLen * 0.85;
-        const rArmX = Math.cos(rArmAngle) * rArmDist;
-        const rArmY = Math.sin(rArmAngle) * rArmDist;
-        // Предплечье
-        ctx.strokeStyle = torsoColor;
-        ctx.lineWidth = R * 0.16;
-        ctx.beginPath();
-        ctx.moveTo(0, R * 0.35);
-        ctx.lineTo(rArmX, rArmY);
-        ctx.stroke();
-
-        // --- Оружие ---
-        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
-        const wepStartX = rArmX;
-        const wepStartY = rArmY * 0.4;
-        const wepEndX = R + wep.len;
-        const wepEndY = 0;
-        ctx.strokeStyle = wep.color;
-        ctx.lineWidth = wep.width;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(wepStartX, wepStartY);
-        ctx.lineTo(wepEndX, wepEndY);
-        ctx.stroke();
-        ctx.lineCap = 'butt';
-        // Дульный срез
-        ctx.fillStyle = '#222';
-        ctx.beginPath();
-        ctx.arc(wepEndX, wepEndY, 2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Правая кисть на оружии
-        ctx.fillStyle = skinColor;
-        ctx.beginPath();
-        ctx.arc(rArmX, rArmY, handR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // --- Шея ---
-        const headDist = R * 0.35;
-        const neckX = headDist * 0.45;
-        ctx.fillStyle = skinColor;
-        ctx.beginPath();
-        ctx.ellipse(neckX, 0, R * 0.1, R * 0.14, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // --- Голова ---
-        const headR = R * 0.28;
-        ctx.fillStyle = headBorder;
-        ctx.beginPath();
-        ctx.arc(headDist, 0, headR + 1.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = headColor;
-        ctx.beginPath();
-        ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (isCT) {
-          // Каска — дуга на голове
-          ctx.strokeStyle = '#3d5c8a';
-          ctx.lineWidth = 2.5;
-          ctx.beginPath();
-          ctx.arc(headDist, 0, headR * 1.05, -Math.PI * 0.6, Math.PI * 0.6);
-          ctx.stroke();
-          // Визор очков
-          ctx.fillStyle = 'rgba(150,200,255,0.4)';
-          ctx.fillRect(headDist + headR * 0.3, -headR * 0.3, headR * 0.6, headR * 0.6);
+        if (useSprite && img) {
+          const drawH = R * 2.2;
+          const drawW = (img.naturalWidth / img.naturalHeight) * drawH;
+          ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
         } else {
-          // Балаклава — тёмная маска
-          ctx.fillStyle = 'rgba(30,25,20,0.5)';
+          const bootColor = isCT ? '#1a2840' : '#2d3520';
+          const legOffsetX = -R * 0.38;
+          const legSpreadY = R * 0.52;
+          ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
           ctx.beginPath();
-          ctx.arc(headDist, 0, headR * 0.85, -Math.PI * 0.5, Math.PI * 0.5);
+          ctx.ellipse(legOffsetX, -legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
           ctx.fill();
-          // Прорезь для глаз
-          ctx.fillStyle = '#eee';
-          ctx.fillRect(headDist + headR * 0.2, -headR * 0.15, headR * 0.35, headR * 0.3);
-        }
+          ctx.fillStyle = bootColor;
+          ctx.beginPath();
+          ctx.ellipse(legOffsetX - R * 0.12, -legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = isCT ? '#253a5c' : '#455a32';
+          ctx.beginPath();
+          ctx.ellipse(legOffsetX, legSpreadY, R * 0.26, R * 0.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = bootColor;
+          ctx.beginPath();
+          ctx.ellipse(legOffsetX - R * 0.12, legSpreadY, R * 0.14, R * 0.12, 0, 0, Math.PI * 2);
+          ctx.fill();
 
-        // Блик на голове
-        const hGrad = ctx.createRadialGradient(
-          headDist - headR * 0.2, -headR * 0.2, headR * 0.05,
-          headDist, 0, headR
-        );
-        hGrad.addColorStop(0, 'rgba(255,255,255,0.2)');
-        hGrad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = hGrad;
-        ctx.beginPath();
-        ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
-        ctx.fill();
+          ctx.fillStyle = torsoBorder;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, R * 0.7, R * 0.6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = torsoColor;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, R * 0.66, R * 0.56, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = gearColor;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, R * 0.44, R * 0.36, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          const armLen = R * 0.55;
+          const handR = R * 0.15;
+          const lArmAngle = -Math.PI * 0.4;
+          const lArmX = Math.cos(lArmAngle) * armLen;
+          const lArmY = Math.sin(lArmAngle) * armLen;
+          ctx.fillStyle = skinColor;
+          ctx.beginPath();
+          ctx.arc(lArmX, lArmY, handR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.strokeStyle = torsoColor;
+          ctx.lineWidth = R * 0.16;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(0, -R * 0.4);
+          ctx.lineTo(lArmX, lArmY);
+          ctx.stroke();
+
+          const rArmAngle = Math.PI * 0.2;
+          const rArmDist = armLen * 0.85;
+          const rArmX = Math.cos(rArmAngle) * rArmDist;
+          const rArmY = Math.sin(rArmAngle) * rArmDist;
+          ctx.strokeStyle = torsoColor;
+          ctx.beginPath();
+          ctx.moveTo(0, R * 0.35);
+          ctx.lineTo(rArmX, rArmY);
+          ctx.stroke();
+
+          const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+          const wepEndX = R + wep.len;
+          const wepEndY = 0;
+          ctx.strokeStyle = wep.color;
+          ctx.lineWidth = wep.width;
+          ctx.beginPath();
+          ctx.moveTo(rArmX, rArmY * 0.4);
+          ctx.lineTo(wepEndX, wepEndY);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+          ctx.fillStyle = '#222';
+          ctx.beginPath();
+          ctx.arc(wepEndX, wepEndY, 2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = skinColor;
+          ctx.beginPath();
+          ctx.arc(rArmX, rArmY, handR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          const headDist = R * 0.35;
+          const neckX = headDist * 0.45;
+          ctx.fillStyle = skinColor;
+          ctx.beginPath();
+          ctx.ellipse(neckX, 0, R * 0.1, R * 0.14, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          const headR = R * 0.28;
+          ctx.fillStyle = headBorder;
+          ctx.beginPath();
+          ctx.arc(headDist, 0, headR + 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = headColor;
+          ctx.beginPath();
+          ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (isCT) {
+            ctx.strokeStyle = '#3d5c8a';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(headDist, 0, headR * 1.05, -Math.PI * 0.6, Math.PI * 0.6);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(150,200,255,0.4)';
+            ctx.fillRect(headDist + headR * 0.3, -headR * 0.3, headR * 0.6, headR * 0.6);
+          } else {
+            ctx.fillStyle = 'rgba(30,25,20,0.5)';
+            ctx.beginPath();
+            ctx.arc(headDist, 0, headR * 0.85, -Math.PI * 0.5, Math.PI * 0.5);
+            ctx.fill();
+            ctx.fillStyle = '#eee';
+            ctx.fillRect(headDist + headR * 0.2, -headR * 0.15, headR * 0.35, headR * 0.3);
+          }
+
+          const hGrad = ctx.createRadialGradient(
+            headDist - headR * 0.2, -headR * 0.2, headR * 0.05,
+            headDist, 0, headR
+          );
+          hGrad.addColorStop(0, 'rgba(255,255,255,0.2)');
+          hGrad.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = hGrad;
+          ctx.beginPath();
+          ctx.arc(headDist, 0, headR, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
         // Мёртвый — лежащий человек (голова, торс, ноги, руки в стороны)
         ctx.fillStyle = '#3a3a3a';

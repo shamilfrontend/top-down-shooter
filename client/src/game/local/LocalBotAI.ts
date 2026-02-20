@@ -114,11 +114,14 @@ function getHuntGoal(
   return { gx: cx + jitter, gy: cy + (hash % 30 - 15) };
 }
 
+/** Радиус подбора пикапа в игре 25; бот идёт пока не подойдёт ближе этого порога */
+const PICKUP_SEEK_STOP_DIST = 18;
+
 function applyMoveToward(input: GameInput, botX: number, botY: number, gx: number, gy: number) {
   const dx = gx - botX;
   const dy = gy - botY;
   const dist = Math.hypot(dx, dy);
-  if (dist < 40) return;
+  if (dist < PICKUP_SEEK_STOP_DIST) return;
   const mx = dx / dist;
   const my = dy / dist;
   if (mx > 0.25) input.right = true;
@@ -152,7 +155,8 @@ export function computeBotAction(
   ammo = 999,
   ammoReserve = 999,
   health = 100,
-  armor = 100
+  armor = 100,
+  weaponRange = 420
 ): { input: GameInput; angle: number; shoot: boolean; wantReload: boolean } {
   const totalAmmo = ammo + ammoReserve;
   const enemies = players.filter((p) => p.team !== botTeam && p.isAlive);
@@ -181,10 +185,12 @@ export function computeBotAction(
 
   const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
   const ammoGoal = needsAmmo ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'ammo') : null;
-  const pickupGoal = ammoGoal ?? (health <= HEALTH_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null)
-    ?? (armor < ARMOR_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null);
+  // Когда патроны кончились — в первую очередь ищем патроны по карте
+  const pickupGoal = (totalAmmo === 0 && ammoGoal) ? ammoGoal : (ammoGoal ?? (health <= HEALTH_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null)
+    ?? (armor < ARMOR_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null));
 
   if (totalAmmo === 0 && ammoGoal) {
+    // Патроны кончились — идём к ближайшей пачке патронов
     const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
     applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
     angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
@@ -208,7 +214,8 @@ export function computeBotAction(
     angle = toTarget + err;
 
     const diff = Math.abs(angleDiff(botAngle, angle));
-    if (diff < 0.15) shoot = true;
+    // Стрелять только если враг в пределах дальности оружия
+    if (diff < 0.15 && minDist <= weaponRange) shoot = true;
 
     if (minDist > 250 && Math.random() < moveFreq) {
       const moveAngle = toTarget;

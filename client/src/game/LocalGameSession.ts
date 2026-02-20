@@ -100,6 +100,7 @@ export class LocalGameSession {
   private onKill?: (killerName: string, victimName: string) => void;
   private onHit?: (x: number, y: number, damage: number) => void;
   private onGameOver?: (winner: 'ct' | 't', players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>) => void;
+  private onReloadStart?: () => void;
 
   constructor(map: MapConfig, options?: LocalGameSessionOptions) {
     this.map = map;
@@ -254,6 +255,10 @@ export class LocalGameSession {
     this.onGameOver = cb;
   }
 
+  setOnReloadStart(cb: () => void) {
+    this.onReloadStart = cb;
+  }
+
   setInput(id: string, input: InputState) {
     const p = this.players.get(id);
     if (p) p.lastInput = input;
@@ -275,7 +280,10 @@ export class LocalGameSession {
 
     if (p.reloadEndTime > now) return;
     if (p.ammo <= 0) {
-      this.startReload(p);
+      if (p.ammoReserve > 0) {
+        this.startReload(p);
+        if (id === 'local') this.onReloadStart?.();
+      }
       return;
     }
     if (now - p.lastShotTime < def.fireRateMs) return;
@@ -333,6 +341,7 @@ export class LocalGameSession {
     if (!def || p.ammo >= def.magazineSize) return false;
     if (Date.now() < p.reloadEndTime) return false;
     this.startReload(p);
+    if (id === 'local') this.onReloadStart?.();
     return true;
   }
 
@@ -518,7 +527,8 @@ export class LocalGameSession {
           enemySpawnPoints: (p.team === 'ct' ? this.map.spawnPoints.t : this.map.spawnPoints.ct).map((s) => ({ x: s.x + 15, y: s.y + 15 })),
           pickups: getActivePickups(this.pickups, now).map((pu) => ({ x: pu.x, y: pu.y, type: pu.type })),
         };
-        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve, p.health, p.armor ?? 0);
+        const weaponRange = WEAPONS[p.weapon]?.range ?? 420;
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve, p.health, p.armor ?? 0, weaponRange);
         p.lastInput = action.input;
         p.angle = action.angle;
         if (action.shoot) this.shoot(p.id);

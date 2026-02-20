@@ -4,6 +4,7 @@ const PISTOLS = ['usp'];
 const MACHINE_GUNS = ['ak47', 'm4'];
 const SNIPERS = ['awp'];
 const MUTED_KEY = 'gameAudioMuted';
+const MUSIC_VOLUME_KEY = 'gameMusicVolume';
 
 function createAudio(src: string): HTMLAudioElement {
   const a = new Audio(src);
@@ -13,12 +14,29 @@ function createAudio(src: string): HTMLAudioElement {
 
 const allAudio: HTMLAudioElement[] = [];
 let audioReady = false;
+let gameMusic: HTMLAudioElement | null = null;
 
 const isMuted = ref(localStorage.getItem(MUTED_KEY) === '1');
+const musicVolume = ref(
+  Math.min(1, Math.max(0, parseFloat(localStorage.getItem(MUSIC_VOLUME_KEY) ?? '0.8') || 0.8))
+);
+
 function applyMute() {
   const v = isMuted.value ? 0 : 1;
   allAudio.forEach((a) => { a.volume = v; });
+  if (gameMusic) {
+    gameMusic.volume = isMuted.value ? 0 : musicVolume.value;
+  }
   localStorage.setItem(MUTED_KEY, isMuted.value ? '1' : '0');
+}
+
+function setMusicVolume(v: number) {
+  const n = Math.min(1, Math.max(0, v));
+  musicVolume.value = n;
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(n));
+  if (gameMusic && !isMuted.value) {
+    gameMusic.volume = n;
+  }
 }
 function toggleMute() {
   isMuted.value = !isMuted.value;
@@ -97,5 +115,27 @@ export function useGameAudio() {
     audio.play().catch(() => {});
   }
 
-  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute };
+  function startGameMusic() {
+    if (gameMusic) return;
+    const audio = new Audio('/music/game.mp3');
+    audio.loop = true;
+    audio.volume = isMuted.value ? 0 : musicVolume.value;
+    gameMusic = audio;
+    audio.play().catch(() => {});
+  }
+
+  function tryPlayGameMusic() {
+    if (gameMusic && !isMuted.value) {
+      gameMusic.play().catch(() => {});
+    }
+  }
+
+  function stopGameMusic() {
+    if (gameMusic) {
+      gameMusic.pause();
+      gameMusic = null;
+    }
+  }
+
+  return { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute, musicVolume, setMusicVolume, startGameMusic, stopGameMusic, tryPlayGameMusic };
 }

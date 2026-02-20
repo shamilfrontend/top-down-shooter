@@ -477,7 +477,7 @@ class GameSession {
           this.map,
           this.botDifficulties.get(p.socketId) ?? 'medium',
           this.tickCount,
-          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor }
+          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: WEAPONS[p.weapon]?.range ?? 420 }
         );
         p.lastInput = action.input;
         p.angle = action.angle;
