@@ -187,7 +187,7 @@ export class GameEngine {
       }
       return ok;
     };
-    const [ctOk, tOk] = await Promise.all([loadSet(ctPrefix, 'ct'), loadSet(tPrefix, 't')]);
+    const [ctOk, tOk] = await Promise.all([loadSet(tPrefix, 'ct'), loadSet(ctPrefix, 't')]);
     this.spritesLoaded = ctOk && tOk;
   }
 

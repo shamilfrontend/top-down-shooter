@@ -13,6 +13,7 @@ import ShopModal from '@/components/ShopModal.vue';
 const BOT_DIFFICULTY_KEY = 'trainingBotDifficulty';
 const BOT_COUNT_KEY = 'trainingBotCount';
 const TRAINING_MAP_KEY = 'trainingMapId';
+const TRAINING_TEAM_KEY = 'trainingPlayAsTeam';
 const BOT_COUNT_MIN = 0;
 const BOT_COUNT_MAX = 20;
 const TRAINING_ROUNDS_TO_WIN = 13;
@@ -28,11 +29,17 @@ function loadBotCount(): number {
   return Number.isFinite(n) ? Math.max(BOT_COUNT_MIN, Math.min(BOT_COUNT_MAX, n)) : 10;
 }
 
+function loadTrainingTeam(): 'ct' | 't' {
+  const saved = localStorage.getItem(TRAINING_TEAM_KEY);
+  return saved === 't' ? 't' : 'ct';
+}
+
 const route = useRoute();
 const router = useRouter();
 
 const botDifficulty = ref<BotDifficulty>(loadBotDifficulty());
 const botCount = ref<number>(loadBotCount());
+const playAsTeam = ref<'ct' | 't'>(loadTrainingTeam());
 const selectedMapId = ref<string>((route.params.mapId as string) || localStorage.getItem(TRAINING_MAP_KEY) || 'dust2');
 const { fetchMap, fetchMapsList, mapsList } = useMaps();
 const { playShot, playReload, playWinCt, playWinTer, playPickupAmmo, playPickupMedkit, playGo, isMuted, toggleMute, musicVolume, setMusicVolume, startGameMusic, stopGameMusic, tryPlayGameMusic } = useGameAudio();
@@ -57,6 +64,8 @@ const hudState = ref({
   currentSlot: 1,
   round: 1,
   roundTimeLeft: 180,
+  roundPhase: 'playing' as 'playing' | 'ended',
+  roundsToWin: TRAINING_ROUNDS_TO_WIN,
 });
 
 const shopOpen = ref(false);
@@ -112,6 +121,7 @@ function applySettings() {
   botCount.value = count;
   localStorage.setItem(BOT_DIFFICULTY_KEY, botDifficulty.value);
   localStorage.setItem(BOT_COUNT_KEY, String(count));
+  localStorage.setItem(TRAINING_TEAM_KEY, playAsTeam.value);
   localStorage.setItem(TRAINING_MAP_KEY, selectedMapId.value);
   engine?.stop();
   localSession?.stop();
@@ -145,12 +155,16 @@ async function init() {
   gameOver.value = null;
   try {
     const map = await fetchMap(mapId);
+    const count = Math.max(0, Math.min(BOT_COUNT_MAX, botCount.value));
+
     localSession = new LocalGameSession(map, {
-      ctBotCount: 0,
-      tBotCount: Math.max(0, Math.min(BOT_COUNT_MAX, botCount.value)),
+      ctBotCount: playAsTeam.value === 'ct' ? 0 : count,
+      tBotCount: playAsTeam.value === 't' ? 0 : count,
+      localPlayerTeam: playAsTeam.value,
       botDifficulty: botDifficulty.value,
       roundsToWin: TRAINING_ROUNDS_TO_WIN,
     });
+
     engine = new GameEngine({
       canvas,
       map,
@@ -169,7 +183,7 @@ async function init() {
       onReload: () => localSession?.reload('local'),
       onSwitchWeapon: (slot) => localSession?.switchWeapon('local', slot),
       onOpenShop: () => { shopOpen.value = !shopOpen.value; },
-      onHUDUpdate: (s) => { hudState.value = { ...s, roundsToWin: TRAINING_ROUNDS_TO_WIN }; },
+      onHUDUpdate: (s) => { hudState.value = { ...hudState.value, ...s, roundsToWin: TRAINING_ROUNDS_TO_WIN }; },
     });
 
     localSession.setOnState((state) => {
@@ -276,7 +290,16 @@ watch(
     <div class="game-header">
       <h2>Тренировка</h2>
       <div class="bot-difficulty-row">
-        <span class="bot-difficulty-label">Количество ботов:</span>
+        <span class="bot-difficulty-label">За кого играть:</span>
+        <label class="bot-difficulty-opt team-choice-ct" :class="{ active: playAsTeam === 'ct' }">
+          <input v-model="playAsTeam" type="radio" value="ct" />
+          <span>Спецназ</span>
+        </label>
+        <label class="bot-difficulty-opt team-choice-t" :class="{ active: playAsTeam === 't' }">
+          <input v-model="playAsTeam" type="radio" value="t" />
+          <span>Террористы</span>
+        </label>
+        <span class="bot-difficulty-label map-sep">Количество ботов:</span>
         <input
           v-model.number="botCount"
           type="number"
@@ -544,6 +567,8 @@ watch(
   color: #ccc;
 }
 .bot-difficulty-opt input { accent-color: var(--cs-orange); }
+.bot-difficulty-opt.team-choice-ct.active { color: #6b9bd1; }
+.bot-difficulty-opt.team-choice-t.active { color: #d4a574; }
 .input-bot-count {
   width: 3rem;
   margin-left: 0.35rem;

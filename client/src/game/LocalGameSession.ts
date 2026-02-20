@@ -16,6 +16,8 @@ export interface LocalGameSessionOptions {
   ctBotCount?: number;
   tBotCount?: number;
   botDifficulty?: BotDifficulty;
+  /** За какую команду играет локальный игрок (по умолчанию ct). */
+  localPlayerTeam?: 'ct' | 't';
   /** До скольки побед играть (матч завершается). Не задано — бесконечные раунды. */
   roundsToWin?: number;
 }
@@ -112,13 +114,14 @@ export class LocalGameSession {
     let ctIdx = 0;
     let tIdx = 0;
 
-    const pistol = START_WEAPONS.ct;
+    const localTeam = this.options.localPlayerTeam ?? 'ct';
+    const pistol = START_WEAPONS[localTeam];
     const pistolDef = WEAPONS[pistol];
-    const sp = spawns.ct[0] || { x: 100, y: 100 };
+    const sp = (spawns[localTeam][0] || { x: 100, y: 100 }) as { x: number; y: number };
 
     this.players.set('local', {
       id: 'local',
-      team: 'ct',
+      team: localTeam,
       username: 'You',
       x: sp.x + 30,
       y: sp.y + 30,
