@@ -25,6 +25,18 @@ top-down-cs/
 - `yarn dev:server` — только сервер (порт 3000)
 - `yarn dev:client` — только клиент (порт 5173)
 
+## Деплой на VPS (Ubuntu)
+
+1. Сборка: `yarn install && yarn build` (создаёт `server/dist/` и `client/dist/`).
+2. Запуск только из **корня репозитория**, чтобы сервер отдавал статику из `client/dist`:
+   ```bash
+   cd /path/to/top-down-shooter
+   node server/dist/index.js
+   ```
+3. Рекомендуется PM2: `pm2 start server/dist/index.js --name top-down-shooter` (из корня репо), затем `pm2 save` и `pm2 startup`.
+4. Переменные окружения задать в `server/.env` (PORT, JWT_SECRET). На VPS обязательно задать свой `JWT_SECRET`.
+5. Открыть порт в файрволе: `ufw allow 3000/tcp` (или нужный порт). Доступ: `http://ВНЕШНИЙ_IP:3000`.
+
 ## Переменные окружения
 
 - `DATABASE_PATH` — путь к файлу SQLite (по умолчанию: `./data/top-down-cs.db`)

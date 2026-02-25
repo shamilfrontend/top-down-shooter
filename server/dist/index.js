@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 require("dotenv/config");
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const path_1 = __importDefault(require("path"));
 const http_1 = require("http");
 const socket_io_1 = require("socket.io");
 const db_1 = require("./config/db");
@@ -20,6 +21,11 @@ app.get('/health', (_req, res) => {
 });
 app.use('/api/auth', auth_1.default);
 app.use('/api/maps', maps_1.default);
+const clientDist = path_1.default.join(process.cwd(), 'client', 'dist');
+app.use(express_1.default.static(clientDist));
+app.get('*', (_req, res) => {
+    res.sendFile(path_1.default.join(clientDist, 'index.html'));
+});
 const io = new socket_io_1.Server(httpServer, {
     cors: { origin: '*' },
 });
