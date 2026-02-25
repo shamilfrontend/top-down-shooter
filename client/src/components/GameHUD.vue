@@ -37,6 +37,7 @@ watch(() => props.weapon, () => { currentWeaponImgFailed.value = false; });
 // Плавная полоска HP (интерполяция за ~0.3 с)
 const displayedHealth = ref(props.health);
 let healthRafId: number | null = null;
+
 watch(() => props.health, (newVal) => {
   const start = displayedHealth.value;
   const startTime = performance.now();
