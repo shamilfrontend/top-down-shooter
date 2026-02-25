@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User';
+import { findByEmailOrUsername, findByEmail, createUser } from '../db/users';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const SALT_ROUNDS = 10;
@@ -32,9 +32,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
-    });
+    const existingUser = findByEmailOrUsername(email, username);
 
     if (existingUser) {
       res.status(400).json({
@@ -44,14 +42,14 @@ export async function register(req: Request, res: Response): Promise<void> {
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = await User.create({
+    const user = createUser({
       email,
       username,
       password: hashedPassword,
     });
 
     const token = jwt.sign(
-      { userId: user._id.toString(), email: user.email, username: user.username },
+      { userId: String(user.id), email: user.email, username: user.username },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -59,10 +57,15 @@ export async function register(req: Request, res: Response): Promise<void> {
     res.status(201).json({
       token,
       user: {
-        id: user._id.toString(),
+        id: String(user.id),
         email: user.email,
         username: user.username,
-        stats: user.stats,
+        stats: {
+          totalKills: user.totalKills,
+          totalDeaths: user.totalDeaths,
+          gamesPlayed: user.gamesPlayed,
+          wins: user.wins,
+        },
       },
     });
   } catch (err) {
@@ -80,7 +83,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const user = await User.findOne({ email });
+    const user = findByEmail(email);
 
     if (!user) {
       res.status(401).json({ error: 'Неверный email или пароль' });
@@ -95,7 +98,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     const token = jwt.sign(
-      { userId: user._id.toString(), email: user.email, username: user.username },
+      { userId: String(user.id), email: user.email, username: user.username },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -103,10 +106,15 @@ export async function login(req: Request, res: Response): Promise<void> {
     res.json({
       token,
       user: {
-        id: user._id.toString(),
+        id: String(user.id),
         email: user.email,
         username: user.username,
-        stats: user.stats,
+        stats: {
+          totalKills: user.totalKills,
+          totalDeaths: user.totalDeaths,
+          gamesPlayed: user.gamesPlayed,
+          wins: user.wins,
+        },
       },
     });
   } catch (err) {

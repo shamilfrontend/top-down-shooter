@@ -104,3 +104,8 @@ body {
   background: var(--cs-panel);
   border: 1px solid var(--cs-panel-border);
 }
+
+img {
+  max-width: 100%;
+  height: auto;
+}

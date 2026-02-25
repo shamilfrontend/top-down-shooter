@@ -155,6 +155,20 @@ class GameSession {
     saveWeaponAmmo(p) {
         p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
     }
+    /** При смерти у игрока остаётся только пистолет. */
+    stripDeadPlayerToPistol(p) {
+        const pistol = Weapons_1.START_WEAPONS[p.team];
+        const def = Weapons_1.WEAPONS[pistol];
+        if (!def)
+            return;
+        p.weapons = [null, pistol];
+        p.currentSlot = 1;
+        p.weapon = pistol;
+        p.weaponAmmo = { [pistol]: { ammo: def.magazineSize, reserve: pistol === 'usp' ? 24 : 90 } };
+        p.ammo = def.magazineSize;
+        p.ammoReserve = pistol === 'usp' ? 24 : 90;
+        p.reloadEndTime = 0;
+    }
     checkRoundEnd(now) {
         if (this.roundPhase === 'ended') {
             if (now >= this.roundEndAt) {
@@ -278,6 +292,7 @@ class GameSession {
                 if (target.health <= 0) {
                     target.isAlive = false;
                     target.deaths++;
+                    this.stripDeadPlayerToPistol(target);
                     p.kills++;
                     p.credits += Weapons_1.CREDITS_KILL;
                     this.io.to(this.roomId).emit('game:event', {
@@ -309,6 +324,8 @@ class GameSession {
         const p = this.players.get(socketId);
         if (!p || !p.isAlive)
             return;
+        if (this.roundPhase !== 'ended')
+            return; // покупка только в время закупа
         if (weaponId === 'armor') {
             const cur = p.armor ?? 0;
             if (cur >= GameSession.ARMOR_MAX || p.credits < GameSession.ARMOR_PRICE)
@@ -383,7 +400,7 @@ class GameSession {
                     y: op.y,
                     isAlive: op.isAlive,
                 }));
-                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount, { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve });
+                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount, { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: Weapons_1.WEAPONS[p.weapon]?.range ?? 420 });
                 p.lastInput = action.input;
                 p.angle = action.angle;
                 if (action.wantReload)

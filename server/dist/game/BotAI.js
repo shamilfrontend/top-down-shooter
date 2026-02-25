@@ -41,19 +41,21 @@ function angleDiff(a, b) {
 }
 const BOT_NAMES = ['Bot Ivan', 'Bot Dmitry', 'Bot Alex', 'Bot Sergei', 'Bot Vlad', 'Bot Oleg', 'Bot Boris', 'Bot Yuri'];
 const AMMO_SEEK_THRESHOLD = 15;
+const HEALTH_SEEK_THRESHOLD = 40;
+const ARMOR_SEEK_THRESHOLD = 50;
 function getBotName(index) {
     return BOT_NAMES[index % BOT_NAMES.length];
 }
-function getNearestAmmoPickup(botX, botY, pickups) {
+function getNearestPickupByType(botX, botY, pickups, type) {
     if (!pickups?.length)
         return null;
-    const ammoPickups = pickups.filter((p) => p.type === 'ammo');
-    if (ammoPickups.length === 0)
+    const filtered = pickups.filter((p) => p.type === type);
+    if (filtered.length === 0)
         return null;
-    let best = ammoPickups[0];
+    let best = filtered[0];
     let bestD = Math.hypot(best.x - botX, best.y - botY);
-    for (let i = 1; i < ammoPickups.length; i++) {
-        const p = ammoPickups[i];
+    for (let i = 1; i < filtered.length; i++) {
+        const p = filtered[i];
         const d = Math.hypot(p.x - botX, p.y - botY);
         if (d < bestD) {
             bestD = d;
@@ -70,7 +72,11 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
     const huntFreq = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.7 : 0.9;
     const totalAmmo = (options?.ammo ?? 999) + (options?.ammoReserve ?? 999);
     const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
-    const ammoPickup = needsAmmo ? getNearestAmmoPickup(botX, botY, options?.pickups) : null;
+    const needsHealth = (options?.health ?? 100) <= HEALTH_SEEK_THRESHOLD;
+    const needsArmor = (options?.armor ?? 100) < ARMOR_SEEK_THRESHOLD;
+    const ammoPickup = needsAmmo ? getNearestPickupByType(botX, botY, options?.pickups, 'ammo') : null;
+    const medkitPickup = needsHealth ? getNearestPickupByType(botX, botY, options?.pickups, 'medkit') : null;
+    const armorPickup = needsArmor ? getNearestPickupByType(botX, botY, options?.pickups, 'armor') : null;
     let target = null;
     let minDist = Infinity;
     for (const e of enemies) {
@@ -83,9 +89,11 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
     let huntTargetX = botX;
     let huntTargetY = botY;
     let hasHuntTarget = false;
-    if (ammoPickup) {
-        huntTargetX = ammoPickup.x;
-        huntTargetY = ammoPickup.y;
+    // Когда патроны кончились — в первую очередь ищем патроны по карте
+    const pickupTarget = (totalAmmo === 0 && ammoPickup) ? ammoPickup : (medkitPickup ?? ammoPickup ?? armorPickup);
+    if (pickupTarget) {
+        huntTargetX = pickupTarget.x;
+        huntTargetY = pickupTarget.y;
         hasHuntTarget = true;
     }
     else if (enemies.length > 0) {
@@ -116,12 +124,14 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
     const currentAmmo = options?.ammo ?? 999;
     const currentReserve = options?.ammoReserve ?? 999;
     const wantReload = currentAmmo === 0 && currentReserve > 0;
+    const weaponRange = options?.weaponRange ?? 420;
     if (target && Math.random() < reactionChance && currentAmmo > 0) {
         const toTarget = Math.atan2(target.y - botY, target.x - botX);
         const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
         angle = toTarget + err;
         const diff = Math.abs(angleDiff(botAngle, angle));
-        if (diff < 0.15)
+        // Стрелять только если враг в пределах дальности оружия
+        if (diff < 0.15 && minDist <= weaponRange)
             shoot = true;
         if (minDist > 250 && Math.random() < moveTowardsTargetFreq) {
             const moveAngle = toTarget;
@@ -151,13 +161,14 @@ function computeBotAction(botId, botTeam, botX, botY, botAngle, players, map, di
         }
     }
     else if (hasHuntTarget) {
-        const seekAmmo = !!ammoPickup;
-        const moveChance = seekAmmo ? 0.95 : huntFreq;
+        const seekPickup = !!pickupTarget;
+        const moveChance = seekPickup ? 0.95 : huntFreq;
         if (Math.random() < moveChance) {
             const dx = huntTargetX - botX;
             const dy = huntTargetY - botY;
             const dist = Math.hypot(dx, dy);
-            if (dist > 50) {
+            /** Радиус подбора пикапа 25; бот идёт пока не подойдёт ближе */
+            if (dist > 22) {
                 const moveAngle = Math.atan2(dy, dx);
                 const mx = Math.cos(moveAngle);
                 const my = Math.sin(moveAngle);

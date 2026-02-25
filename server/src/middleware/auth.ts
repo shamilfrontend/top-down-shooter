@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { User } from '../models/User';
+import { findById } from '../db/users';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
@@ -33,7 +33,13 @@ export async function authMiddleware(
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    const user = await User.findById(decoded.userId).select('-password');
+    const id = Number(decoded.userId);
+    if (Number.isNaN(id)) {
+      res.status(401).json({ error: 'Недействительный токен' });
+      return;
+    }
+
+    const user = findById(id);
 
     if (!user) {
       res.status(401).json({ error: 'Пользователь не найден' });
@@ -41,7 +47,7 @@ export async function authMiddleware(
     }
 
     req.user = {
-      id: user._id.toString(),
+      id: String(user.id),
       email: user.email,
       username: user.username,
       stats: user.stats,

@@ -8,7 +8,7 @@ exports.login = login;
 exports.me = me;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const User_1 = require("../models/User");
+const users_1 = require("../db/users");
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 const SALT_ROUNDS = 10;
 async function register(req, res) {
@@ -22,9 +22,7 @@ async function register(req, res) {
             res.status(400).json({ error: 'Пароль должен быть не менее 6 символов' });
             return;
         }
-        const existingUser = await User_1.User.findOne({
-            $or: [{ email }, { username }],
-        });
+        const existingUser = (0, users_1.findByEmailOrUsername)(email, username);
         if (existingUser) {
             res.status(400).json({
                 error: existingUser.email === email ? 'Email уже занят' : 'Имя пользователя уже занято',
@@ -32,19 +30,24 @@ async function register(req, res) {
             return;
         }
         const hashedPassword = await bcrypt_1.default.hash(password, SALT_ROUNDS);
-        const user = await User_1.User.create({
+        const user = (0, users_1.createUser)({
             email,
             username,
             password: hashedPassword,
         });
-        const token = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+        const token = jsonwebtoken_1.default.sign({ userId: String(user.id), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
         res.status(201).json({
             token,
             user: {
-                id: user._id.toString(),
+                id: String(user.id),
                 email: user.email,
                 username: user.username,
-                stats: user.stats,
+                stats: {
+                    totalKills: user.totalKills,
+                    totalDeaths: user.totalDeaths,
+                    gamesPlayed: user.gamesPlayed,
+                    wins: user.wins,
+                },
             },
         });
     }
@@ -60,7 +63,7 @@ async function login(req, res) {
             res.status(400).json({ error: 'Заполните все поля' });
             return;
         }
-        const user = await User_1.User.findOne({ email });
+        const user = (0, users_1.findByEmail)(email);
         if (!user) {
             res.status(401).json({ error: 'Неверный email или пароль' });
             return;
@@ -70,14 +73,19 @@ async function login(req, res) {
             res.status(401).json({ error: 'Неверный email или пароль' });
             return;
         }
-        const token = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+        const token = jsonwebtoken_1.default.sign({ userId: String(user.id), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
         res.json({
             token,
             user: {
-                id: user._id.toString(),
+                id: String(user.id),
                 email: user.email,
                 username: user.username,
-                stats: user.stats,
+                stats: {
+                    totalKills: user.totalKills,
+                    totalDeaths: user.totalDeaths,
+                    gamesPlayed: user.gamesPlayed,
+                    wins: user.wins,
+                },
             },
         });
     }

@@ -5,7 +5,7 @@ Top Down шутер в стиле Counter-Strike.
 ## Стек
 
 - **Client**: Vue 3 + TypeScript + Vite, SCSS, Socket.IO-client
-- **Server**: Node.js + Express + TypeScript, Socket.IO, MongoDB (Mongoose)
+- **Server**: Node.js + Express + TypeScript, Socket.IO, SQLite (Drizzle ORM)
 
 ## Структура
 
@@ -19,8 +19,7 @@ top-down-cs/
 ## Запуск
 
 1. Установите зависимости: `yarn install`
-2. Запустите MongoDB локально
-3. Запустите dev-сервер: `yarn dev`
+2. Запустите dev-сервер: `yarn dev` (БД SQLite создаётся автоматически в `server/data/`)
 
 Отдельно:
 - `yarn dev:server` — только сервер (порт 3000)
@@ -28,7 +27,7 @@ top-down-cs/
 
 ## Переменные окружения
 
-- `MONGODB_URI` — URI MongoDB (по умолчанию: `mongodb://localhost:27017/top-down-cs`)
+- `DATABASE_PATH` — путь к файлу SQLite (по умолчанию: `./data/top-down-cs.db`)
 - `PORT` — порт сервера (по умолчанию: 3000)
 - `JWT_SECRET` — секрет для JWT (обязательно в production)
 

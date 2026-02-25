@@ -61,8 +61,11 @@ onUnmounted(() => {
 
 <template>
   <div class="main-menu" @click.once="tryPlayMenuMusic">
-    <h1 class="logo">SHOOTOUT</h1>
     <nav class="menu">
+			<div class="logo">
+				<img src="/images/logo.png" alt="">
+			</div>
+
       <router-link to="/lobby" class="menu-item" active-class="menu-item-active">
         Играть
       </router-link>
@@ -128,30 +131,20 @@ onUnmounted(() => {
 	}
 }
 
-.logo {
-  position: absolute;
-  top: 48px;
-  left: 50%;
-	z-index: 2;
-  transform: translateX(-50%);
-  font-size: 2.75rem;
-  font-weight: bold;
-  color: #fff;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  margin: 0;
-}
-
 .menu {
   position: absolute;
   left: 48px;
-  top: 50%;
+  top: 45%;
 	z-index: 2;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 4px;
   list-style: none;
+}
+
+.logo {
+	width: 240px;
 }
 
 .menu-item {
