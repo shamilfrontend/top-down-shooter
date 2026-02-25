@@ -1,7 +1,7 @@
 import type { MapConfig } from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './local/weapons';
-import { raycast, getWallDist } from './local/raycast';
+import { raycast, getWallDist, MAX_SHOT_RANGE } from './local/raycast';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
 import { computeBotAction, getBotName } from './local/LocalBotAI';
 
@@ -302,9 +302,8 @@ export class LocalGameSession {
       .filter((op) => op.isAlive)
       .map((op) => ({ id: op.id, team: op.team, x: op.x, y: op.y, radius: PLAYER_RADIUS }));
 
-    const hit = raycast(p.x, p.y, shotAngle, def.range, 0, this.map.walls, players, id);
-
-    const wallDist = getWallDist(p.x, p.y, shotAngle, def.range, this.map.walls);
+    const wallDist = getWallDist(p.x, p.y, shotAngle, MAX_SHOT_RANGE, this.map.walls);
+    const hit = raycast(p.x, p.y, shotAngle, MAX_SHOT_RANGE, 0, this.map.walls, players, id);
     const trailDist = hit ? Math.min(hit.dist, wallDist) : wallDist;
     const trailEndX = p.x + Math.cos(shotAngle) * trailDist;
     const trailEndY = p.y + Math.sin(shotAngle) * trailDist;
@@ -530,8 +529,7 @@ export class LocalGameSession {
           enemySpawnPoints: (p.team === 'ct' ? this.map.spawnPoints.t : this.map.spawnPoints.ct).map((s) => ({ x: s.x + 15, y: s.y + 15 })),
           pickups: getActivePickups(this.pickups, now).map((pu) => ({ x: pu.x, y: pu.y, type: pu.type })),
         };
-        const weaponRange = WEAPONS[p.weapon]?.range ?? 420;
-        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve, p.health, p.armor ?? 0, weaponRange);
+        const action = computeBotAction(p.id, p.team, p.x, p.y, p.angle, playersList, this.map.walls, this.tickCount, difficulty, mapContext, p.ammo, p.ammoReserve, p.health, p.armor ?? 0, MAX_SHOT_RANGE);
         p.lastInput = action.input;
         p.angle = action.angle;
         if (action.shoot) this.shoot(p.id);

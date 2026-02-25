@@ -5,7 +5,6 @@ export interface WeaponDef {
   magazineSize: number;
   fireRateMs: number;
   reloadTimeMs: number;
-  range: number;
   spread: number;
   price?: number;
   maxReserve?: number;
@@ -24,7 +23,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
     magazineSize: 12,
     fireRateMs: 150,
     reloadTimeMs: 2200,
-    range: 300,
     spread: 0.02,
     maxReserve: 60,
   },
@@ -35,7 +33,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
     magazineSize: 30,
     fireRateMs: 90,
     reloadTimeMs: 3100,
-    range: 420,
     spread: 0.03,
     price: 3500,
     maxReserve: 120,
@@ -47,7 +44,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
     magazineSize: 30,
     fireRateMs: 100,
     reloadTimeMs: 2500,
-    range: 420,
     spread: 0.04,
     price: 5000,
     maxReserve: 120,
@@ -59,7 +55,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
     magazineSize: 5,
     fireRateMs: 1100,
     reloadTimeMs: 3700,
-    range: 600,
     spread: 0.001,
     price: 4750,
     maxReserve: 30,

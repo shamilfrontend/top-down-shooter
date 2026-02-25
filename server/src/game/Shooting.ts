@@ -71,6 +71,19 @@ function raycastWalls(
   return closestT * maxDist;
 }
 
+export const MAX_SHOT_RANGE = 10000;
+
+export function getWallDist(
+  ox: number, oy: number,
+  angle: number,
+  maxDist: number,
+  walls: Wall[]
+): number {
+  const dirX = Math.cos(angle);
+  const dirY = Math.sin(angle);
+  return raycastWalls(ox, oy, dirX, dirY, maxDist, walls);
+}
+
 export function raycast(
   ox: number, oy: number, angle: number,
   range: number, spread: number,

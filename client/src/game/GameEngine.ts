@@ -639,19 +639,40 @@ export class GameEngine {
       ];
     }
 
-    // Bullet trails (ease-out затухание)
+    // Пули: летящая точка + короткий след (не линия до цели)
     const now = performance.now();
     const TRAIL_DURATION = 150;
+    const TRAIL_LENGTH = 40; // длина следа позади пули в игровых единицах
+    const BULLET_RADIUS = 2; // радиус пули в игровых единицах
     this.bulletTrails = this.bulletTrails.filter((t) => now - t.time < TRAIL_DURATION);
     this.bulletTrails.forEach((trail) => {
-      const age = (now - trail.time) / TRAIL_DURATION;
-      const easeOut = 1 - age * age;
-      const alpha = 0.5 * easeOut;
-      ctx.strokeStyle = `rgba(255, 220, 100, ${alpha})`;
-      ctx.lineWidth = (1.5 - age * 0.5) / scale;
+      const progress = Math.min(1, (now - trail.time) / TRAIL_DURATION);
+      if (progress >= 1) return;
+      const bx = trail.x1 + (trail.x2 - trail.x1) * progress;
+      const by = trail.y1 + (trail.y2 - trail.y1) * progress;
+      const dx = trail.x2 - trail.x1;
+      const dy = trail.y2 - trail.y1;
+      const len = Math.hypot(dx, dy);
+      const ux = len > 0 ? dx / len : 1;
+      const uy = len > 0 ? dy / len : 0;
+      // Короткий след позади пули
+      const trailEndX = bx - ux * TRAIL_LENGTH;
+      const trailEndY = by - uy * TRAIL_LENGTH;
+      const trailAlpha = 0.5 * (1 - progress);
+      ctx.strokeStyle = `rgba(255, 220, 100, ${trailAlpha})`;
+      ctx.lineWidth = 1.2 / scale;
       ctx.beginPath();
-      ctx.moveTo(trail.x1, trail.y1);
-      ctx.lineTo(trail.x2, trail.y2);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(trailEndX, trailEndY);
+      ctx.stroke();
+      // Пуля — маленький круг
+      const r = BULLET_RADIUS / scale;
+      ctx.fillStyle = '#4a4a4a';
+      ctx.strokeStyle = 'rgba(200, 200, 200, 0.8)';
+      ctx.lineWidth = 0.8 / scale;
+      ctx.beginPath();
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     });
 
@@ -944,6 +965,22 @@ export class GameEngine {
         ctx.fill();
       }
 
+      // Линия направления от дула (местный игрок)
+      if (p.isLocal && p.isAlive) {
+        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+        const muzzleX = p.x + Math.cos(p.angle) * (R + wep.len);
+        const muzzleY = p.y + Math.sin(p.angle) * (R + wep.len);
+        const AIM_LINE_LEN = 100;
+        const endX = muzzleX + Math.cos(p.angle) * AIM_LINE_LEN;
+        const endY = muzzleY + Math.sin(p.angle) * AIM_LINE_LEN;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.175)';
+        ctx.lineWidth = 1.5 / scale;
+        ctx.beginPath();
+        ctx.moveTo(muzzleX, muzzleY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+
       // --- HP bar ---
       if (p.isAlive && p.health < 100) {
         const barW = R * 2.2;
@@ -971,10 +1008,26 @@ export class GameEngine {
       }
     });
 
+    // Маркер точки прицеливания в мире (местный игрок жив, курсор над канвасом)
+    const { width: sw, height: sh } = this.mapRenderer.getSize();
+    const inCanvas = this.mouseX >= 0 && this.mouseY >= 0 && this.mouseX < sw && this.mouseY < sh;
+    if (localPlayerHealth != null && inCanvas) {
+      const [worldMouseX, worldMouseY] = this.mapRenderer.screenToWorld(this.mouseX, this.mouseY);
+      const markerR = 5 / scale;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.lineWidth = 1.5 / scale;
+      ctx.beginPath();
+      ctx.arc(worldMouseX, worldMouseY, markerR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.arc(worldMouseX, worldMouseY, markerR - 1 / scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
 
     // --- Screen-space: прицел и виньетка ---
-    const { width: sw, height: sh } = this.mapRenderer.getSize();
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 

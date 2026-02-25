@@ -5,6 +5,5 @@ export interface Weapon {
   magazineSize: number;
   fireRate: number; // ms между выстрелами
   reloadTime: number; // ms
-  range: number;
   spread?: number; // разброс
 }

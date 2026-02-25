@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MAX_SHOT_RANGE = void 0;
+exports.getWallDist = getWallDist;
 exports.raycast = raycast;
 function lineSegmentIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
     const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
@@ -45,6 +47,12 @@ function raycastWalls(ox, oy, dx, dy, maxDist, walls) {
         }
     }
     return closestT * maxDist;
+}
+exports.MAX_SHOT_RANGE = 10000;
+function getWallDist(ox, oy, angle, maxDist, walls) {
+    const dirX = Math.cos(angle);
+    const dirY = Math.sin(angle);
+    return raycastWalls(ox, oy, dirX, dirY, maxDist, walls);
 }
 function raycast(ox, oy, angle, range, spread, walls, players, excludeId) {
     const spreadAngle = (Math.random() - 0.5) * spread * Math.PI;

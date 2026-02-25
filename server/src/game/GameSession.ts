@@ -5,7 +5,7 @@ import type { MapConfig } from 'top-down-cs-shared';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './Weapons';
-import { raycast } from './Shooting';
+import { raycast, getWallDist, MAX_SHOT_RANGE } from './Shooting';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
 import { computeBotAction, getBotName } from './BotAI';
 
@@ -322,10 +322,11 @@ class GameSession {
       if (op.isAlive) players.push({ id: op.socketId, team: op.team, x: op.x, y: op.y, radius: PLAYER_RADIUS });
     }
 
-    const hit = raycast(p.x, p.y, shotAngle, def.range, 0, this.map.walls, players, socketId);
+    const wallDist = getWallDist(p.x, p.y, shotAngle, MAX_SHOT_RANGE, this.map.walls);
+    const hit = raycast(p.x, p.y, shotAngle, MAX_SHOT_RANGE, 0, this.map.walls, players, socketId);
 
     // Вычисляем конец трейла пули
-    const trailDist = hit ? hit.dist : def.range;
+    const trailDist = hit ? hit.dist : wallDist;
     const trailEndX = p.x + Math.cos(shotAngle) * trailDist;
     const trailEndY = p.y + Math.sin(shotAngle) * trailDist;
 
@@ -477,7 +478,7 @@ class GameSession {
           this.map,
           this.botDifficulties.get(p.socketId) ?? 'medium',
           this.tickCount,
-          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: WEAPONS[p.weapon]?.range ?? 420 }
+          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: MAX_SHOT_RANGE }
         );
         p.lastInput = action.input;
         p.angle = action.angle;

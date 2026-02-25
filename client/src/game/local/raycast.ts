@@ -195,6 +195,8 @@ export function hasLineOfSight(
   return true;
 }
 
+export const MAX_SHOT_RANGE = 10000;
+
 /** Расстояние до ближайшей стены по лучу (для трейлов пуль) */
 export function getWallDist(
   ox: number, oy: number,

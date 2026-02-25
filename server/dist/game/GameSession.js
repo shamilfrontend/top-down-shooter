@@ -259,9 +259,10 @@ class GameSession {
             if (op.isAlive)
                 players.push({ id: op.socketId, team: op.team, x: op.x, y: op.y, radius: PLAYER_RADIUS });
         }
-        const hit = (0, Shooting_1.raycast)(p.x, p.y, shotAngle, def.range, 0, this.map.walls, players, socketId);
+        const wallDist = (0, Shooting_1.getWallDist)(p.x, p.y, shotAngle, Shooting_1.MAX_SHOT_RANGE, this.map.walls);
+        const hit = (0, Shooting_1.raycast)(p.x, p.y, shotAngle, Shooting_1.MAX_SHOT_RANGE, 0, this.map.walls, players, socketId);
         // Вычисляем конец трейла пули
-        const trailDist = hit ? hit.dist : def.range;
+        const trailDist = hit ? hit.dist : wallDist;
         const trailEndX = p.x + Math.cos(shotAngle) * trailDist;
         const trailEndY = p.y + Math.sin(shotAngle) * trailDist;
         this.io.to(this.roomId).emit('game:event', {
@@ -400,7 +401,7 @@ class GameSession {
                     y: op.y,
                     isAlive: op.isAlive,
                 }));
-                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount, { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: Weapons_1.WEAPONS[p.weapon]?.range ?? 420 });
+                const action = (0, BotAI_1.computeBotAction)(p.socketId, p.team, p.x, p.y, p.angle, playersList, this.map, this.botDifficulties.get(p.socketId) ?? 'medium', this.tickCount, { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: Shooting_1.MAX_SHOT_RANGE });
                 p.lastInput = action.input;
                 p.angle = action.angle;
                 if (action.wantReload)
