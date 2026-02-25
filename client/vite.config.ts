@@ -11,6 +11,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true, // слушать на 0.0.0.0 — доступ по внешнему IP в локальной сети
     proxy: {
       '/api': {
         target: 'http://localhost:3000',
