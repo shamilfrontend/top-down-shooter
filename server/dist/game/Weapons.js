@@ -10,7 +10,7 @@ exports.WEAPONS = {
         id: 'pm',
         name: 'Пистолет Макарова',
         damage: 20,
-        magazineSize: 12,
+        magazineSize: 8,
         fireRateMs: 150,
         reloadTimeMs: 2200,
         spread: 0.02,
