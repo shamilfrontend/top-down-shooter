@@ -16,16 +16,16 @@ const props = defineProps<{
   currentSlot?: number;
   round?: number;
   roundTimeLeft?: number;
-  roundPhase?: 'playing' | 'ended';
+  roundPhase?: 'buy' | 'playing' | 'ended';
   roundsToWin?: number;
   reloadEndTime?: number;
 }>();
 
-const RELOAD_MS: Record<string, number> = { usp: 2200, m4: 3100, ak47: 2500, awp: 3700 };
-const MAGAZINE_SIZE: Record<string, number> = { usp: 12, m4: 30, ak47: 30, awp: 5 };
+const RELOAD_MS: Record<string, number> = { pm: 2200, m4: 3100, ak47: 2500, awp: 3700 };
+const MAGAZINE_SIZE: Record<string, number> = { pm: 8, m4: 30, ak47: 30, awp: 5 };
 
 const weaponNames: Record<string, string> = {
-  usp: 'USP-S',
+  pm: 'Пистолет Макарова',
   ak47: 'AK-47',
   m4: 'M4A1',
   awp: 'AWP',
@@ -74,12 +74,11 @@ const reloadProgress = computed(() => {
   return Math.min(1, 1 - (props.reloadEndTime - Date.now()) / ms);
 });
 
-const magazineSize = computed(() => MAGAZINE_SIZE[props.weapon] ?? 12);
+const magazineSize = computed(() => MAGAZINE_SIZE[props.weapon] ?? 8);
 const lowAmmo = computed(() => props.ammo > 0 && props.ammo < magazineSize.value * 0.25);
 
 function weaponImageSrc(id: string): string {
-  const filename = id === 'usp' ? 'gun' : id;
-  return `/images/weapons/${filename}.png`;
+  return `/images/weapons/${id}.png`;
 }
 
 function onWeaponImgError(e: Event) {
@@ -93,7 +92,7 @@ function onCurrentWeaponImgError(e: Event) {
 
 // Размер иконки (ширина в px) для визуального отличия
 const weaponIconWidth: Record<string, number> = {
-  usp: 20,
+  pm: 20,
   ak47: 28,
   m4: 26,
   awp: 32,
@@ -102,7 +101,7 @@ const weaponIconWidth: Record<string, number> = {
 // 1 — основное (слот 0), 2 — пистолет (слот 1)
 const slots = [
   { key: 0, label: '1', weapon: props.weapons?.[0] ?? null },
-  { key: 1, label: '2', weapon: props.weapons?.[1] ?? 'usp' },
+  { key: 1, label: '2', weapon: props.weapons?.[1] ?? 'pm' },
 ];
 
 function getSlotWeapon(key: number): string | null {
@@ -132,7 +131,7 @@ function isSelected(key: number): boolean {
 
     <div v-if="round != null" class="hud-round-bottom">
       <span>Раунд {{ round }}</span>
-      <span v-if="roundPhase === 'ended'" class="round-phase-buy">Время закупа</span>
+      <span v-if="roundPhase === 'buy'" class="round-phase-buy">Время закупа</span>
       <span v-else-if="roundTimeLeft != null" class="round-timer">
         {{ Math.floor((roundTimeLeft ?? 0) / 60) }}:{{ String((roundTimeLeft ?? 0) % 60).padStart(2, '0') }}
       </span>

@@ -8,6 +8,7 @@ exports.getGameSession = getGameSession;
 exports.stopGameSession = stopGameSession;
 const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
+const users_1 = require("../db/users");
 const RoomStore_1 = require("./RoomStore");
 const ServerPhysics_1 = require("./ServerPhysics");
 const Weapons_1 = require("./Weapons");
@@ -19,6 +20,7 @@ const PLAYER_RADIUS = 23;
 const TICK_MS = 1000 / TICK_RATE;
 const ROUND_TIME_MS = 180 * 1000; // 3 min
 const ROUND_END_DELAY_MS = 5000; // 5 sec before next round
+const ROUND_BUY_TIME_MS = 7000; // 7 sec buy phase at round start
 const mapsDir = path_1.default.join(process.cwd(), 'data', 'maps');
 class GameSession {
     constructor(io, roomId, map, roundsToWin) {
@@ -30,8 +32,9 @@ class GameSession {
         this.round = 1;
         this.roundStartTime = 0;
         this.roundWins = { ct: 0, t: 0 };
-        this.roundPhase = 'playing';
+        this.roundPhase = 'buy';
         this.roundEndAt = 0;
+        this.roundBuyEndAt = 0;
         this.lastPickupRelocateInterval = -1;
         this.botDifficulties = new Map();
         this.io = io;
@@ -67,7 +70,7 @@ class GameSession {
                     armor: 0,
                     weapon: pistol,
                     ammo: pistolDef.magazineSize,
-                    ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
+                    ammoReserve: pistolDef.id === 'pm' ? 24 : 90,
                     isAlive: true,
                     kills: 0,
                     deaths: 0,
@@ -97,7 +100,7 @@ class GameSession {
                     armor: 0,
                     weapon: pistol,
                     ammo: pistolDef.magazineSize,
-                    ammoReserve: pistolDef.id === 'usp' ? 24 : 90,
+                    ammoReserve: pistolDef.id === 'pm' ? 24 : 90,
                     isAlive: true,
                     kills: 0,
                     deaths: 0,
@@ -112,8 +115,11 @@ class GameSession {
             }
         }
         this.pickups = (0, Pickups_1.createPickups)(this.map, { ammo: 3, medkit: 3, armor: 3 });
-        this.roundStartTime = Date.now();
-        this.lastPickupRelocateInterval = Math.floor(Date.now() / Pickups_1.PICKUP_RELOCATE_MS);
+        const now = Date.now();
+        this.roundStartTime = now;
+        this.roundPhase = 'buy';
+        this.roundBuyEndAt = now + ROUND_BUY_TIME_MS;
+        this.lastPickupRelocateInterval = Math.floor(now / Pickups_1.PICKUP_RELOCATE_MS);
         this.tickInterval = setInterval(() => this.tick(), TICK_MS);
     }
     respawnAll() {
@@ -149,7 +155,7 @@ class GameSession {
         }
         else {
             p.ammo = def.magazineSize;
-            p.ammoReserve = Math.min(p.weapon === 'usp' ? 24 : 90, maxReserve);
+            p.ammoReserve = Math.min(p.weapon === 'pm' ? 24 : 90, maxReserve);
         }
     }
     saveWeaponAmmo(p) {
@@ -164,17 +170,24 @@ class GameSession {
         p.weapons = [null, pistol];
         p.currentSlot = 1;
         p.weapon = pistol;
-        p.weaponAmmo = { [pistol]: { ammo: def.magazineSize, reserve: pistol === 'usp' ? 24 : 90 } };
+        p.weaponAmmo = { [pistol]: { ammo: def.magazineSize, reserve: pistol === 'pm' ? 24 : 90 } };
         p.ammo = def.magazineSize;
-        p.ammoReserve = pistol === 'usp' ? 24 : 90;
+        p.ammoReserve = pistol === 'pm' ? 24 : 90;
         p.reloadEndTime = 0;
     }
     checkRoundEnd(now) {
+        if (this.roundPhase === 'buy') {
+            if (now >= this.roundBuyEndAt) {
+                this.roundPhase = 'playing';
+            }
+            return;
+        }
         if (this.roundPhase === 'ended') {
             if (now >= this.roundEndAt) {
                 this.round++;
-                this.roundPhase = 'playing';
+                this.roundPhase = 'buy';
                 this.roundStartTime = now;
+                this.roundBuyEndAt = now + ROUND_BUY_TIME_MS;
                 this.respawnAll();
                 this.io.to(this.roomId).emit('game:event', { type: 'roundStart', round: this.round });
             }
@@ -203,6 +216,16 @@ class GameSession {
             }
             this.io.to(this.roomId).emit('game:event', { type: 'roundEnd', winner, roundWins: this.roundWins });
             if (this.roundWins.ct >= this.roundsToWin || this.roundWins.t >= this.roundsToWin) {
+                for (const p of this.players.values()) {
+                    if (p.team === winner && p.userId) {
+                        try {
+                            (0, users_1.updateArmor)(p.userId, p.armor ?? 0);
+                        }
+                        catch {
+                            // DB may be unavailable in tests
+                        }
+                    }
+                }
                 const finalPlayers = Array.from(this.players.values()).map((p) => ({
                     id: p.socketId,
                     username: p.username,
@@ -325,16 +348,8 @@ class GameSession {
         const p = this.players.get(socketId);
         if (!p || !p.isAlive)
             return;
-        if (this.roundPhase !== 'ended')
-            return; // покупка только в время закупа
-        if (weaponId === 'armor') {
-            const cur = p.armor ?? 0;
-            if (cur >= GameSession.ARMOR_MAX || p.credits < GameSession.ARMOR_PRICE)
-                return;
-            p.credits -= GameSession.ARMOR_PRICE;
-            p.armor = Math.min(GameSession.ARMOR_MAX, cur + GameSession.ARMOR_BUY_AMOUNT);
-            return;
-        }
+        if (this.roundPhase !== 'buy')
+            return; // покупка только в время закупа в начале раунда
         const def = Weapons_1.WEAPONS[weaponId];
         if (!def || !def.price)
             return;
@@ -444,9 +459,11 @@ class GameSession {
     }
     broadcast() {
         const now = Date.now();
-        const roundTimeLeft = this.roundPhase === 'playing'
-            ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))
-            : Math.max(0, Math.floor((this.roundEndAt - now) / 1000));
+        const roundTimeLeft = this.roundPhase === 'buy'
+            ? Math.max(0, Math.floor((this.roundBuyEndAt - now) / 1000))
+            : this.roundPhase === 'playing'
+                ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))
+                : Math.max(0, Math.floor((this.roundEndAt - now) / 1000));
         const payload = {
             players: Array.from(this.players.values()).map((p) => ({
                 id: p.socketId,
@@ -479,9 +496,11 @@ class GameSession {
     }
     getState() {
         const now = Date.now();
-        const roundTimeLeft = this.roundPhase === 'playing'
-            ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))
-            : Math.max(0, Math.floor((this.roundEndAt - now) / 1000));
+        const roundTimeLeft = this.roundPhase === 'buy'
+            ? Math.max(0, Math.floor((this.roundBuyEndAt - now) / 1000))
+            : this.roundPhase === 'playing'
+                ? Math.max(0, Math.floor((this.roundStartTime + ROUND_TIME_MS - now) / 1000))
+                : Math.max(0, Math.floor((this.roundEndAt - now) / 1000));
         return {
             map: this.map,
             players: Array.from(this.players.values()).map((p) => ({
@@ -522,9 +541,6 @@ class GameSession {
             this.players.delete(socketId);
     }
 }
-GameSession.ARMOR_PRICE = 650;
-GameSession.ARMOR_BUY_AMOUNT = 50;
-GameSession.ARMOR_MAX = 100;
 const sessions = new Map();
 async function startGameSession(io, roomId, mapId) {
     try {

@@ -6,16 +6,15 @@ const props = withDefaults(
     show: boolean;
     credits: number;
     weapons: [string | null, string];
-    armor?: number;
-    /** Покупка только при 'ended'. Если не передано — считаем что можно покупать. */
-    roundPhase?: 'playing' | 'ended';
+    /** Покупка только при фазе 'buy' (первые 7 сек раунда). */
+    roundPhase?: 'buy' | 'playing' | 'ended';
     /** Контейнер для телепорта (например, fullscreen-элемент); если не передан — body */
     teleportTo?: HTMLElement | null;
   }>(),
-  { teleportTo: null, armor: 0 }
+  { teleportTo: null }
 );
 
-const canBuy = computed(() => props.roundPhase !== 'playing');
+const canBuy = computed(() => props.roundPhase === 'buy');
 
 const teleportTarget = computed(() => props.teleportTo ?? 'body');
 
@@ -28,7 +27,7 @@ interface ShopItem {
   id: string;
   name: string;
   price: number;
-  type: 'weapon' | 'armor';
+  type: 'weapon';
   slot?: number;
 }
 
@@ -38,20 +37,13 @@ const weaponItems: ShopItem[] = [
   { id: 'awp', name: 'AWP', price: 4750, type: 'weapon', slot: 0 },
 ];
 
-const armorItem: ShopItem = { id: 'armor', name: 'Броня', price: 650, type: 'armor' };
-
-const ARMOR_MAX = 100;
-
 const visibleItems = computed(() => {
   const ownedPrimary = props.weapons?.[0] ?? null;
-  const weapons = weaponItems.filter((item) => item.id !== ownedPrimary);
-  const armorVisible = (props.armor ?? 0) < ARMOR_MAX;
-  return armorVisible ? [armorItem, ...weapons] : weapons;
+  return weaponItems.filter((item) => item.id !== ownedPrimary);
 });
 
 function weaponImageSrc(id: string): string {
-  const filename = id === 'usp' ? 'gun' : id;
-  return `/images/weapons/${filename}.png`;
+  return `/images/weapons/${id}.png`;
 }
 </script>
 
@@ -72,14 +64,10 @@ function weaponImageSrc(id: string): string {
             :class="{ disabled: credits < item.price }"
           >
             <img
-              v-if="item.type === 'weapon'"
               :src="weaponImageSrc(item.id)"
               :alt="item.name"
               class="shop-item-icon"
             >
-            <div v-else class="shop-item-icon shop-item-armor-icon" aria-hidden="true">
-              🛡
-            </div>
             <div class="item-name">{{ item.name }}</div>
             <div class="item-price">{{ item.price }} ₽</div>
             <button
@@ -155,14 +143,6 @@ function weaponImageSrc(id: string): string {
   height: 64px;
   object-fit: contain;
   flex-shrink: 0;
-}
-.shop-item-armor-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
 }
 .shop-item.disabled {
   opacity: 0.6;

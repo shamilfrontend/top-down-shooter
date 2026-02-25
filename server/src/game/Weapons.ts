@@ -16,11 +16,11 @@ export const CREDITS_ROUND_LOSS = 1400;
 export const CREDITS_START = 800;
 
 export const WEAPONS: Record<string, WeaponDef> = {
-  usp: {
-    id: 'usp',
-    name: 'USP-S (Пистолет)',
+  pm: {
+    id: 'pm',
+    name: 'Пистолет Макарова',
     damage: 20,
-    magazineSize: 12,
+    magazineSize: 8,
     fireRateMs: 150,
     reloadTimeMs: 2200,
     spread: 0.02,
@@ -62,6 +62,6 @@ export const WEAPONS: Record<string, WeaponDef> = {
 };
 
 export const START_WEAPONS: Record<'ct' | 't', string> = {
-  ct: 'usp',
-  t: 'usp',
+  ct: 'pm',
+  t: 'pm',
 };

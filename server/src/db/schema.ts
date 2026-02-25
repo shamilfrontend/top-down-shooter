@@ -10,6 +10,7 @@ export const users = sqliteTable('users', {
   totalDeaths: integer('total_deaths').notNull().default(0),
   gamesPlayed: integer('games_played').notNull().default(0),
   wins: integer('wins').notNull().default(0),
+  armor: integer('armor').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 

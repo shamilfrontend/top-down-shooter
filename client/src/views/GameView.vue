@@ -51,7 +51,7 @@ let localSession: LocalGameSession | null = null;
 
 const hudState = ref({
   health: 100,
-  weapon: 'usp',
+  weapon: 'pm',
   ammo: 12,
   ammoReserve: 24,
   kills: 0,
@@ -60,11 +60,11 @@ const hudState = ref({
   scoreT: 0,
   credits: 800,
   armor: 0,
-  weapons: [null, 'usp'] as [string | null, string],
+  weapons: [null, 'pm'] as [string | null, string],
   currentSlot: 1,
   round: 1,
   roundTimeLeft: 180,
-  roundPhase: 'playing' as 'playing' | 'ended',
+  roundPhase: 'playing' as 'buy' | 'playing' | 'ended',
   roundsToWin: TRAINING_ROUNDS_TO_WIN,
 });
 
@@ -467,7 +467,6 @@ watch(
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
-        :armor="hudState.armor ?? 0"
         :round-phase="hudState.roundPhase"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
@@ -814,6 +813,7 @@ watch(
   align-items: center;
   justify-content: center;
   z-index: 1001;
+  cursor: default;
 }
 .game-over-card {
   padding: 24px 32px;

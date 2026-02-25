@@ -6,9 +6,9 @@ exports.CREDITS_ROUND_WIN = 3250;
 exports.CREDITS_ROUND_LOSS = 1400;
 exports.CREDITS_START = 800;
 exports.WEAPONS = {
-    usp: {
-        id: 'usp',
-        name: 'USP-S (Пистолет)',
+    pm: {
+        id: 'pm',
+        name: 'Пистолет Макарова',
         damage: 20,
         magazineSize: 12,
         fireRateMs: 150,
@@ -51,6 +51,6 @@ exports.WEAPONS = {
     },
 };
 exports.START_WEAPONS = {
-    ct: 'usp',
-    t: 'usp',
+    ct: 'pm',
+    t: 'pm',
 };

@@ -25,7 +25,7 @@ let engine: GameEngine | null = null;
 const hudState = ref({
   health: 100,
   armor: 0,
-  weapon: 'usp',
+  weapon: 'pm',
   ammo: 12,
   ammoReserve: 24,
   kills: 0,
@@ -33,11 +33,11 @@ const hudState = ref({
   scoreCt: 0,
   scoreT: 0,
   credits: 800,
-  weapons: [null, 'usp'] as [string | null, string],
+  weapons: [null, 'pm'] as [string | null, string],
   currentSlot: 1,
   round: 1,
   roundTimeLeft: 180,
-  roundPhase: 'playing' as 'playing' | 'ended',
+  roundPhase: 'playing' as 'buy' | 'playing' | 'ended',
   isAlive: true,
 });
 
@@ -78,7 +78,7 @@ const KILL_FEED_MAX = 6;
 const killFeedVisible = computed(() => [...killFeed.value].slice(-KILL_FEED_MAX).reverse());
 function weaponShort(w?: string): string {
   if (!w) return '';
-  return w === 'usp' ? 'USP' : w.toUpperCase();
+  return w === 'pm' ? 'ПМ' : w.toUpperCase();
 }
 
 const scoreboardOpen = ref(false);
@@ -168,13 +168,13 @@ async function init() {
       if (lastRound.value != null && round > lastRound.value) playGo();
       lastRound.value = round;
     }
-    const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }) => {
+    const onGameState = (data: { map: typeof map; players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'buy' | 'playing' | 'ended' }) => {
       if (data.map) engine?.setMap(data.map);
       scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins, roundPhase: data.roundPhase } : undefined);
       applyRoundSound(data.round);
     };
-    const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }) => {
+    const onGameUpdate = (data: { players: ServerPlayer[]; pickups?: Array<{ id: string; type: string; x: number; y: number }>; round?: number; roundTimeLeft?: number; roundWins?: { ct: number; t: number }; roundPhase?: 'buy' | 'playing' | 'ended' }) => {
       scoreboardPlayers.value = data.players;
       engine?.setServerState(data.players, data.pickups, data.round != null ? { round: data.round, roundTimeLeft: data.roundTimeLeft ?? 180, roundWins: data.roundWins, roundPhase: data.roundPhase } : undefined);
       applyRoundSound(data.round);
@@ -431,7 +431,6 @@ watch(() => route.params.roomId, () => {
         :show="shopOpen"
         :credits="hudState.credits"
         :weapons="hudState.weapons"
-        :armor="hudState.armor ?? 0"
         :round-phase="hudState.roundPhase"
         :teleport-to="isFullscreen && canvasWrapRef ? canvasWrapRef : null"
         @close="shopOpen = false"
@@ -853,6 +852,7 @@ watch(() => route.params.roomId, () => {
   align-items: center;
   justify-content: center;
   z-index: 1001;
+  cursor: default;
 }
 .game-over-card {
   padding: 24px 32px;

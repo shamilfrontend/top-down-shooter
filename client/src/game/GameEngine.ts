@@ -41,7 +41,7 @@ type SpritePose = (typeof SPRITE_POSES)[number];
 
 // Оружие → поза спрайта Kenney
 const WEAPON_TO_POSE: Record<string, SpritePose> = {
-  usp: 'silencer',
+  pm: 'silencer',
   m4: 'machine',
   ak47: 'machine',
   awp: 'gun',
@@ -49,7 +49,7 @@ const WEAPON_TO_POSE: Record<string, SpritePose> = {
 
 // Размеры оружия для отрисовки (длина ствола от центра персонажа)
 const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string }> = {
-  usp: { len: 20, width: 3, color: '#aaa' },
+  pm: { len: 20, width: 3, color: '#aaa' },
   m4: { len: 28, width: 3.5, color: '#666' },
   ak47: { len: 30, width: 3.5, color: '#8B7355' },
   awp: { len: 42, width: 4, color: '#4a5568' },
@@ -79,7 +79,7 @@ export interface GameEngineOptions {
   onInput?: (state: { x: number; y: number; angle: number; up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => void;
   onShoot?: () => void;
   onReload?: () => void;
-  onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'playing' | 'ended'; isAlive?: boolean }) => void;
+  onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'buy' | 'playing' | 'ended'; isAlive?: boolean }) => void;
   onSwitchWeapon?: (slot: 0 | 1) => void;
   onOpenShop?: () => void;
   networked?: boolean;
@@ -96,7 +96,7 @@ export class GameEngine {
   private onReload?: () => void;
   private onSwitchWeapon?: (slot: 0 | 1) => void;
   private onOpenShop?: () => void;
-  private onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'playing' | 'ended'; isAlive?: boolean }) => void;
+  private onHUDUpdate?: (state: { health: number; armor?: number; weapon: string; ammo: number; ammoReserve: number; kills: number; deaths: number; scoreCt: number; scoreT: number; credits?: number; weapons?: [string | null, string]; currentSlot?: number; round?: number; roundTimeLeft?: number; roundPhase?: 'buy' | 'playing' | 'ended'; isAlive?: boolean }) => void;
 
   private localState: LocalPlayerState;
   private players: Player[] = [];
@@ -308,7 +308,7 @@ export class GameEngine {
   setServerState(
     players: ServerPlayer[],
     pickups?: Array<{ id: string; type: string; x: number; y: number }>,
-    roundInfo?: { round: number; roundTimeLeft: number; roundWins?: { ct: number; t: number }; roundPhase?: 'playing' | 'ended' }
+    roundInfo?: { round: number; roundTimeLeft: number; roundWins?: { ct: number; t: number }; roundPhase?: 'buy' | 'playing' | 'ended' }
   ) {
     if (pickups) this.pickups = pickups;
     if (roundInfo) this.setRoundInfo(roundInfo.round, roundInfo.roundTimeLeft, roundInfo.roundWins, roundInfo.roundPhase);
@@ -344,7 +344,7 @@ export class GameEngine {
     this.cameraShake = Math.max(this.cameraShake, 2.5);
     const me = this.lastServerState.find((p) => p.id === this.localPlayerId) ?? this.players.find((p) => p.id === this.localPlayerId);
     const R = PLAYER_RADIUS * 1.3;
-    const wep = WEAPON_VISUALS[me?.weapon ?? 'usp'] ?? WEAPON_VISUALS['usp'];
+    const wep = WEAPON_VISUALS[me?.weapon ?? 'pm'] ?? WEAPON_VISUALS['pm'];
     const ax = this.localState.x + Math.cos(this.localState.angle) * (R + wep.len);
     const ay = this.localState.y + Math.sin(this.localState.angle) * (R + wep.len);
     const perpX = -Math.sin(this.localState.angle);
@@ -429,14 +429,14 @@ export class GameEngine {
     return { x: aliveTeammate.x, y: aliveTeammate.y };
   }
 
-  private lastRoundInfo?: { round: number; roundTimeLeft: number; roundPhase?: 'playing' | 'ended' };
+  private lastRoundInfo?: { round: number; roundTimeLeft: number; roundPhase?: 'buy' | 'playing' | 'ended' };
   private lastRoundWins?: { ct: number; t: number };
 
-  getRoundInfo(): { round: number; roundTimeLeft: number; roundPhase?: 'playing' | 'ended' } | null {
+  getRoundInfo(): { round: number; roundTimeLeft: number; roundPhase?: 'buy' | 'playing' | 'ended' } | null {
     return this.lastRoundInfo ?? null;
   }
 
-  setRoundInfo(round: number, roundTimeLeft: number, roundWins?: { ct: number; t: number }, roundPhase?: 'playing' | 'ended') {
+  setRoundInfo(round: number, roundTimeLeft: number, roundWins?: { ct: number; t: number }, roundPhase?: 'buy' | 'playing' | 'ended') {
     this.lastRoundInfo = { round, roundTimeLeft, roundPhase };
     if (roundWins) this.lastRoundWins = roundWins;
   }
@@ -606,7 +606,7 @@ export class GameEngine {
           y: localState.y,
           angle: localState.angle,
           health: me?.health ?? 100,
-          weapon: me?.weapon ?? 'usp',
+          weapon: me?.weapon ?? 'pm',
           ammo: me?.ammo ?? 0,
           ammoReserve: me?.ammoReserve ?? 0,
           isAlive: me?.isAlive ?? true,
@@ -628,7 +628,7 @@ export class GameEngine {
           y: localState.y,
           angle: localState.angle,
           health: 100,
-          weapon: 'usp',
+          weapon: 'pm',
           ammo: 0,
           ammoReserve: 0,
           isAlive: true,
@@ -836,7 +836,7 @@ export class GameEngine {
           ctx.lineTo(rArmX, rArmY);
           ctx.stroke();
 
-          const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+          const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['pm'];
           const wepEndX = R + wep.len;
           const wepEndY = 0;
           ctx.strokeStyle = wep.color;
@@ -950,7 +950,7 @@ export class GameEngine {
 
       // Muzzle flash у дула местного игрока
       if (p.isLocal && p.isAlive && now < this.muzzleFlashUntil) {
-        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['pm'];
         const muzzleX = p.x + Math.cos(p.angle) * (R + wep.len);
         const muzzleY = p.y + Math.sin(p.angle) * (R + wep.len);
         const flashAlpha = (this.muzzleFlashUntil - now) / 80;
@@ -967,7 +967,7 @@ export class GameEngine {
 
       // Линия направления от дула (местный игрок)
       if (p.isLocal && p.isAlive) {
-        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['usp'];
+        const wep = WEAPON_VISUALS[p.weapon] ?? WEAPON_VISUALS['pm'];
         const muzzleX = p.x + Math.cos(p.angle) * (R + wep.len);
         const muzzleY = p.y + Math.sin(p.angle) * (R + wep.len);
         const AIM_LINE_LEN = 100;

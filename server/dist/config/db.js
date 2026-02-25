@@ -73,9 +73,16 @@ async function connectDB() {
         total_deaths INTEGER NOT NULL DEFAULT 0,
         games_played INTEGER NOT NULL DEFAULT 0,
         wins INTEGER NOT NULL DEFAULT 0,
+        armor INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
       )
     `);
+        try {
+            sqlite.exec(`ALTER TABLE users ADD COLUMN armor INTEGER NOT NULL DEFAULT 0`);
+        }
+        catch {
+            // Column already exists (e.g. after first migration)
+        }
         console.log('SQLite connected');
     }
     catch (error) {

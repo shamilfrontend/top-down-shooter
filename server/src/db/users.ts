@@ -63,3 +63,10 @@ export function createUser(data: { email: string; username: string; password: st
   if (!rows.length) throw new Error('Insert failed');
   return rows[0];
 }
+
+export function updateArmor(userId: string, armor: number): void {
+  const db = getDb();
+  const id = Number(userId);
+  if (Number.isNaN(id)) return;
+  db.update(users).set({ armor: Math.max(0, Math.min(100, armor)) }).where(eq(users.id, id)).run();
+}

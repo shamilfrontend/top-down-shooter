@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 
-const PISTOLS = ['usp'];
+const PISTOLS = ['pm'];
 const MACHINE_GUNS = ['ak47', 'm4'];
 const SNIPERS = ['awp'];
 const MUTED_KEY = 'gameAudioMuted';
