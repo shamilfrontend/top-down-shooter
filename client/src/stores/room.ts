@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { RoomState, RoomListItem } from 'top-down-cs-shared';
+
 import { useSocket } from '@/composables/useSocket';
 
 export const useRoomStore = defineStore('room', () => {
@@ -17,7 +18,16 @@ export const useRoomStore = defineStore('room', () => {
     s.emit('room:list');
   }
 
-  function createRoom(options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; team?: 'ct' | 't' }) {
+  function createRoom(
+      options: {
+        name: string;
+        password?: string;
+        map?: string;
+        maxPlayers?: number;
+        roundsToWin?: number;
+        team?: 'ct' | 't'
+      }
+    ) {
     error.value = null;
     const s = connect();
     s.emit('room:create', options);
