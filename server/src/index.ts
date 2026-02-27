@@ -36,7 +36,7 @@ import { setupSocketHandlers } from './socket';
 
 setupSocketHandlers(io);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 async function start() {
   await connectDB();
