@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
-
-const mapsDir = path.join(process.cwd(), 'data', 'maps');
+import { mapsDir } from '../config/paths';
 
 const router = Router();
 

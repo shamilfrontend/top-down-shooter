@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import fs from 'fs/promises';
 import type { MapConfig } from 'top-down-cs-shared';
+import { mapsDir } from '../config/paths';
 import { updateArmor } from '../db/users';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
@@ -16,7 +17,6 @@ const TICK_MS = 1000 / TICK_RATE;
 const ROUND_TIME_MS = 180 * 1000; // 3 min
 const ROUND_END_DELAY_MS = 5000; // 5 sec before next round
 const ROUND_BUY_TIME_MS = 7000; // 7 sec buy phase at round start
-const mapsDir = path.join(process.cwd(), 'data', 'maps');
 
 export interface GamePlayer {
   socketId: string;
