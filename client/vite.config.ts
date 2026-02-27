@@ -14,11 +14,11 @@ export default defineConfig({
     host: true, // слушать на 0.0.0.0 — доступ по внешнему IP в локальной сети
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3001',
         ws: true,
       },
     },

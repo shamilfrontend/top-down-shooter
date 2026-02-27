@@ -22,7 +22,7 @@ top-down-cs/
 2. Запустите dev-сервер: `yarn dev` (БД SQLite создаётся автоматически в `server/data/`)
 
 Отдельно:
-- `yarn dev:server` — только сервер (порт 3000)
+- `yarn dev:server` — только сервер (порт 3001)
 - `yarn dev:client` — только клиент (порт 5173)
 
 ## Деплой на VPS (Ubuntu)
@@ -35,12 +35,12 @@ top-down-cs/
    ```
 3. Рекомендуется PM2: `pm2 start server/dist/index.js --name top-down-shooter` (из корня репо), затем `pm2 save` и `pm2 startup`.
 4. Переменные окружения задать в `server/.env` (PORT, JWT_SECRET). На VPS обязательно задать свой `JWT_SECRET`.
-5. Открыть порт в файрволе: `ufw allow 3000/tcp` (или нужный порт). Доступ: `http://ВНЕШНИЙ_IP:3000`.
+5. Открыть порт в файрволе: `ufw allow 3001/tcp` (или нужный порт). Доступ: `http://ВНЕШНИЙ_IP:3001`.
 
 ## Переменные окружения
 
 - `DATABASE_PATH` — путь к файлу SQLite (по умолчанию: `./data/top-down-cs.db`)
-- `PORT` — порт сервера (по умолчанию: 3000)
+- `PORT` — порт сервера (по умолчанию: 3001)
 - `JWT_SECRET` — секрет для JWT (обязательно в production)
 
 ## API
