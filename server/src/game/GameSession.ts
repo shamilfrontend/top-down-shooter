@@ -91,6 +91,7 @@ class GameSession {
   private roundEndAt = 0;
   private roundBuyEndAt = 0;
   private lastPickupRelocateInterval = -1;
+  private lastRoundWinner: 'ct' | 't' | null = null;
 
   private botDifficulties = new Map<string, 'easy' | 'medium' | 'hard'>();
 
@@ -197,11 +198,14 @@ class GameSession {
       p.vx = 0;
       p.vy = 0;
       p.health = 100;
-      p.armor = 0;
+      if (p.team !== this.lastRoundWinner) {
+        p.armor = 0;
+      }
       p.isAlive = true;
       p.reloadEndTime = 0;
       this.applyWeaponSlot(p);
     }
+    this.lastRoundWinner = null;
   }
 
   private applyWeaponSlot(p: GamePlayer) {
@@ -271,6 +275,7 @@ class GameSession {
       else this.roundWins.t++;
       this.roundPhase = 'ended';
       this.roundEndAt = now + ROUND_END_DELAY_MS;
+      this.lastRoundWinner = winner;
       for (const pl of this.players.values()) {
         const won = pl.team === winner;
         pl.credits += won ? CREDITS_ROUND_WIN : CREDITS_ROUND_LOSS;
