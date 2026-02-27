@@ -6,7 +6,7 @@ import { mapsDir } from '../config/paths';
 import { updateArmor } from '../db/users';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
-import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './Weapons';
+import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS, AMMO_PRICE } from './Weapons';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './Shooting';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
 import { computeBotAction, getBotName } from './BotAI';
@@ -414,6 +414,10 @@ class GameSession {
   }
 
   buyWeapon(socketId: string, weaponId: string): void {
+    if (weaponId === 'ammo') {
+      this.buyAmmo(socketId);
+      return;
+    }
     const p = this.players.get(socketId);
     if (!p || !p.isAlive) return;
     if (this.roundPhase !== 'buy') return; // покупка только в время закупа в начале раунда
@@ -430,6 +434,21 @@ class GameSession {
       p.currentSlot = 0;
       this.applyWeaponSlot(p);
     }
+  }
+
+  buyAmmo(socketId: string): void {
+    const p = this.players.get(socketId);
+    if (!p || !p.isAlive) return;
+    if (this.roundPhase !== 'buy') return;
+    if (p.credits < AMMO_PRICE) return;
+    const def = WEAPONS[p.weapon];
+    if (!def || def.maxReserve == null) return;
+    const add = def.magazineSize;
+    const newReserve = Math.min(p.ammoReserve + add, def.maxReserve);
+    if (newReserve <= p.ammoReserve) return; // уже полный запас
+    p.credits -= AMMO_PRICE;
+    p.ammoReserve = newReserve;
+    p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
   }
 
   reload(socketId: string): void {

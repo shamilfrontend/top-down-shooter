@@ -1,6 +1,6 @@
 import type { MapConfig } from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
-import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS } from './local/weapons';
+import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS, AMMO_PRICE } from './local/weapons';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './local/raycast';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
 import { computeBotAction, getBotName } from './local/LocalBotAI';
@@ -385,6 +385,10 @@ export class LocalGameSession {
   }
 
   buyWeapon(id: string, weaponId: string): void {
+    if (weaponId === 'ammo') {
+      this.buyAmmo(id);
+      return;
+    }
     const p = this.players.get(id);
     if (!p || !p.isAlive) return;
     if (this.roundPhase !== 'buy') return; // покупка только в время закупа в начале раунда
@@ -401,6 +405,21 @@ export class LocalGameSession {
       p.currentSlot = 0;
       this.applyWeaponSlot(p);
     }
+  }
+
+  buyAmmo(id: string): void {
+    const p = this.players.get(id);
+    if (!p || !p.isAlive) return;
+    if (this.roundPhase !== 'buy') return;
+    if (p.credits < AMMO_PRICE) return;
+    const def = WEAPONS[p.weapon];
+    if (!def || def.maxReserve == null) return;
+    const add = def.magazineSize;
+    const newReserve = Math.min(p.ammoReserve + add, def.maxReserve);
+    if (newReserve <= p.ammoReserve) return; // уже полный запас
+    p.credits -= AMMO_PRICE;
+    p.ammoReserve = newReserve;
+    p.weaponAmmo[p.weapon] = { ammo: p.ammo, reserve: p.ammoReserve };
   }
 
   private applyWeaponSlot(p: LocalPlayer) {

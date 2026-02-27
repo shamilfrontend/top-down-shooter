@@ -27,9 +27,11 @@ interface ShopItem {
   id: string;
   name: string;
   price: number;
-  type: 'weapon';
+  type: 'weapon' | 'ammo';
   slot?: number;
 }
+
+const AMMO_PRICE = 200;
 
 const weaponItems: ShopItem[] = [
   { id: 'm4', name: 'M4A1', price: 3500, type: 'weapon', slot: 0 },
@@ -37,9 +39,12 @@ const weaponItems: ShopItem[] = [
   { id: 'awp', name: 'AWP', price: 4750, type: 'weapon', slot: 0 },
 ];
 
+const ammoItem: ShopItem = { id: 'ammo', name: 'Патроны', price: AMMO_PRICE, type: 'ammo' };
+
 const visibleItems = computed(() => {
   const ownedPrimary = props.weapons?.[0] ?? null;
-  return weaponItems.filter((item) => item.id !== ownedPrimary);
+  const weapons = weaponItems.filter((item) => item.id !== ownedPrimary);
+  return [...weapons, ammoItem];
 });
 
 function weaponImageSrc(id: string): string {
@@ -64,10 +69,14 @@ function weaponImageSrc(id: string): string {
             :class="{ disabled: credits < item.price }"
           >
             <img
+              v-if="item.type === 'weapon'"
               :src="weaponImageSrc(item.id)"
               :alt="item.name"
               class="shop-item-icon"
             >
+            <div v-else class="shop-item-icon shop-item-icon-ammo" :title="item.name">
+              <span class="ammo-icon">▸▸▸</span>
+            </div>
             <div class="item-name">{{ item.name }}</div>
             <div class="item-price">{{ item.price }} ₽</div>
             <button
@@ -143,6 +152,16 @@ function weaponImageSrc(id: string): string {
   height: 64px;
   object-fit: contain;
   flex-shrink: 0;
+}
+.shop-item-icon-ammo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(180, 140, 60, 0.4);
+  border: 1px solid var(--cs-panel-border);
+}
+.shop-item-icon-ammo .ammo-icon {
+  font-size: 28px;
 }
 .shop-item.disabled {
   opacity: 0.6;

@@ -14,6 +14,8 @@ export const CREDITS_KILL = 300;
 export const CREDITS_ROUND_WIN = 3250;
 export const CREDITS_ROUND_LOSS = 1400;
 export const CREDITS_START = 800;
+/** Цена одной упаковки патронов (один магазин для текущего оружия). */
+export const AMMO_PRICE = 200;
 
 export const WEAPONS: Record<string, WeaponDef> = {
   pm: {
