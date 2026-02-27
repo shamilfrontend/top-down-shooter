@@ -1,24 +1,48 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
 
-dotenv.config();
+import { connectDB } from './config/db';
+import authRoutes from './routes/auth';
+import mapsRoutes from './routes/maps';
 
 const app = express();
+const httpServer = createServer(app);
+
 app.use(cors());
 app.use(express.json());
 
-const httpServer = createServer(app);
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/maps', mapsRoutes);
+
+const clientDist = path.join(process.cwd(), 'client', 'dist');
+app.use(express.static(clientDist));
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(clientDist, 'index.html'));
+});
+
 const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
 
-const PORT = process.env.PORT ?? 3001;
+import { setupSocketHandlers } from './socket';
 
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+setupSocketHandlers(io);
 
-export { app, io };
+const PORT = process.env.PORT || 3000;
+
+async function start() {
+  await connectDB();
+  httpServer.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+start();
