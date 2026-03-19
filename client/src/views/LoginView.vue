@@ -8,9 +8,9 @@ const router = useRouter();
 const auth = useAuthStore();
 const formRef = ref<InstanceType<typeof LoginForm> | null>(null);
 
-async function onSubmit(email: string, password: string) {
+async function onSubmit(name: string) {
   try {
-    await auth.login(email, password);
+    auth.setName(name);
     router.push({ name: 'home' });
   } catch (err) {
     formRef.value?.setError(err instanceof Error ? err.message : 'Ошибка входа');
@@ -23,10 +23,6 @@ async function onSubmit(email: string, password: string) {
     <div class="auth-card panel-cs">
       <h1 class="auth-title">ВХОД</h1>
       <LoginForm ref="formRef" @submit="onSubmit" />
-      <p class="auth-link">
-        Нет аккаунта?
-        <router-link to="/register">Регистрация</router-link>
-      </p>
     </div>
   </div>
 </template>

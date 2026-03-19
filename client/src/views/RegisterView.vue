@@ -1,33 +1,10 @@
-<script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAuthStore } from '@/stores/auth';
-import RegisterForm from '@/components/RegisterForm.vue';
-
-const router = useRouter();
-const auth = useAuthStore();
-const formRef = ref<InstanceType<typeof RegisterForm> | null>(null);
-
-async function onSubmit(email: string, username: string, password: string) {
-  try {
-    await auth.register(email, username, password);
-    router.push({ name: 'home' });
-  } catch (err) {
-    formRef.value?.setError(
-      err instanceof Error ? err.message : 'Ошибка регистрации'
-    );
-  }
-}
-</script>
-
 <template>
   <div class="auth-view">
     <div class="auth-card panel-cs">
-      <h1 class="auth-title">РЕГИСТРАЦИЯ</h1>
-      <RegisterForm ref="formRef" @submit="onSubmit" />
+      <h1 class="auth-title">РЕГИСТРАЦИЯ ОТКЛЮЧЕНА</h1>
       <p class="auth-link">
-        Уже есть аккаунт?
-        <router-link to="/login">Вход</router-link>
+        Используйте простой вход по `Имя`.
+        <router-link to="/login">Перейти на вход</router-link>
       </p>
     </div>
   </div>

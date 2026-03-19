@@ -20,7 +20,7 @@ export function useSocket() {
     socket.value = io(url, {
       path: '/socket.io',
       auth: {
-        token: auth.token,
+        username: auth.user?.username,
       },
     });
 

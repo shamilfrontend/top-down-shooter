@@ -2,20 +2,20 @@
 import { ref } from 'vue';
 
 const emit = defineEmits<{
-  submit: [email: string, password: string];
+  submit: [name: string];
 }>();
 
-const email = ref('');
-const password = ref('');
+const name = ref('');
 const error = ref('');
 
 function handleSubmit() {
   error.value = '';
-  if (!email.value || !password.value) {
+  const trimmed = name.value.trim();
+  if (!trimmed) {
     error.value = 'Заполните все поля';
     return;
   }
-  emit('submit', email.value, password.value);
+  emit('submit', trimmed);
 }
 
 defineExpose({ setError: (msg: string) => (error.value = msg) });
@@ -25,18 +25,11 @@ defineExpose({ setError: (msg: string) => (error.value = msg) });
   <form class="login-form" @submit.prevent="handleSubmit">
     <div v-if="error" class="form-error">{{ error }}</div>
     <input
-      v-model="email"
-      type="email"
-      placeholder="Email"
+      v-model="name"
+      type="text"
+      placeholder="Имя"
       class="input-cs"
-      autocomplete="email"
-    />
-    <input
-      v-model="password"
-      type="password"
-      placeholder="Пароль"
-      class="input-cs"
-      autocomplete="current-password"
+      autocomplete="nickname"
     />
     <button type="submit" class="btn-cs btn-cs-primary" style="width: 100%; margin-top: 4px;">Войти</button>
   </form>

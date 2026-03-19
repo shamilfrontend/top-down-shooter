@@ -1,9 +1,6 @@
 import { Server, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { RoomStore } from '../game/RoomStore';
 import { startGameSession, getGameSession, stopGameSession } from '../game/GameSession';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
 
 interface SocketAuth {
   userId?: string;
@@ -11,21 +8,11 @@ interface SocketAuth {
 }
 
 function getAuth(socket: Socket): SocketAuth | null {
-  const token = socket.handshake.auth?.token;
-  if (!token) return null;
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId?: string;
-      email?: string;
-      username?: string;
-    };
-    return {
-      userId: decoded.userId,
-      username: decoded.username || decoded.email?.split('@')[0] || decoded.userId || socket.id,
-    };
-  } catch {
-    return null;
-  }
+  const username = socket.handshake.auth?.username;
+  if (typeof username !== 'string') return null;
+  const trimmed = username.trim();
+  if (!trimmed) return null;
+  return { username: trimmed };
 }
 
 export function setupSocketHandlers(io: Server): void {

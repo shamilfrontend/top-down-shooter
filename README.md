@@ -45,7 +45,6 @@ top-down-cs/
 
 ## API
 
-- `POST /api/auth/register` — регистрация (email, username, password)
 - `POST /api/auth/login` — вход (email, password)
 - `GET /api/auth/me` — текущий пользователь (Authorization: Bearer token)
 
