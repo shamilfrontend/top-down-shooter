@@ -17,6 +17,10 @@ function getAuth(socket: Socket): SocketAuth | null {
 
 export function setupSocketHandlers(io: Server): void {
   io.on('connection', (socket: Socket) => {
+    const broadcastRoomList = () => {
+      io.emit('room:list', RoomStore.list());
+    };
+
     const auth = getAuth(socket);
     const username = auth?.username || `Guest-${socket.id.slice(0, 6)}`;
 
@@ -35,6 +39,7 @@ export function setupSocketHandlers(io: Server): void {
       });
       socket.join(room.id);
       socket.emit('room:created', RoomStore.toState(room));
+      broadcastRoomList();
     });
 
     socket.on('room:list', () => {
@@ -51,6 +56,7 @@ export function setupSocketHandlers(io: Server): void {
       socket.join(data.roomId);
       socket.emit('room:joined', RoomStore.toState(room));
       socket.to(data.roomId).emit('room:update', RoomStore.toState(room));
+      broadcastRoomList();
     });
 
     socket.on('room:leave', () => {
@@ -62,6 +68,7 @@ export function setupSocketHandlers(io: Server): void {
         if (room) {
           socket.to(result.roomId).emit('room:update', RoomStore.toState(room));
         }
+        broadcastRoomList();
       }
     });
 
@@ -110,6 +117,7 @@ export function setupSocketHandlers(io: Server): void {
       }
       room.status = 'playing';
       io.to(room.id).emit('game:starting', { room: RoomStore.toState(room), mapId: room.map });
+      broadcastRoomList();
 
       const session = await startGameSession(io, room.id, room.map);
       if (session) {
@@ -118,6 +126,7 @@ export function setupSocketHandlers(io: Server): void {
       } else {
         socket.emit('room:error', 'Ошибка загрузки карты');
         room.status = 'waiting';
+        broadcastRoomList();
       }
     });
 
@@ -179,6 +188,7 @@ export function setupSocketHandlers(io: Server): void {
         } else {
           stopGameSession(result.roomId);
         }
+        broadcastRoomList();
       }
     });
   });

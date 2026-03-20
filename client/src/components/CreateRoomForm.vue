@@ -14,14 +14,12 @@ const maxPlayers = ref(10);
 const roundsToWin = ref(10);
 
 const maps = [
-  { value: 'dust', label: 'Dust' },
   { value: 'dust2', label: 'Dust II' },
-  { value: 'mansion', label: 'Mansion' },
-  { value: 'warehouse', label: 'Warehouse' },
 ];
 
 function handleSubmit() {
   if (!name.value.trim()) return;
+
   emit('submit', {
     name: name.value.trim(),
     password: password.value.trim() || undefined,

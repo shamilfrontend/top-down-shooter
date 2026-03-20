@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
+import { useRoomStore } from '@/stores/room';
+import { useSocket } from '@/composables/useSocket';
+import CreateRoomForm from '@/components/CreateRoomForm.vue';
+import RoomSettingsModal from '@/components/RoomSettingsModal.vue';
+import ServerBrowserModal from '@/components/ServerBrowserModal.vue';
 
 const auth = useAuthStore();
 const router = useRouter();
+const room = useRoomStore();
+const { connect } = useSocket();
 
 const MENU_MUSIC_VOLUME_KEY = 'menuMusicVolume';
 const menuMusic = ref<HTMLAudioElement | null>(null);
@@ -12,6 +19,15 @@ const isMusicMuted = ref(localStorage.getItem('menuMusicMuted') === '1');
 const menuMusicVolume = ref(
   Math.min(100, Math.max(0, parseInt(localStorage.getItem(MENU_MUSIC_VOLUME_KEY) ?? '80', 10) || 80))
 );
+
+type CreateRoomOptions = {
+  name: string;
+  password?: string;
+  map: string;
+  maxPlayers: number;
+  roundsToWin: number;
+  team: 'ct' | 't';
+};
 
 function logout() {
   auth.logout();
@@ -44,6 +60,71 @@ function setMenuMusicVolume(v: number) {
   }
 }
 
+const showCreateForm = ref(false);
+const showServerBrowser = ref(false);
+let cleanupRoomListeners: null | (() => void) = null;
+let roomListRefreshInterval: ReturnType<typeof setInterval> | null = null;
+const ROOM_LIST_REFRESH_MS = 8000;
+
+const roomModalVisible = computed(() => !!room.currentRoom && room.currentRoom.status !== 'playing');
+
+function ensureRoomListeners() {
+  if (cleanupRoomListeners) return;
+  // Подключаем сокет и подписки только когда реально открывается/нужна модалка комнаты.
+  connect();
+  cleanupRoomListeners = room.setupListeners() ?? null;
+}
+
+const handleNewGameBtnClick = (): void => {
+  ensureRoomListeners();
+
+  showCreateForm.value = true;
+};
+
+function openServerBrowser() {
+  ensureRoomListeners();
+  room.fetchRoomList();
+  showServerBrowser.value = true;
+}
+
+function closeServerBrowser() {
+  showServerBrowser.value = false;
+}
+
+function onCreateRoomSubmit(opts: CreateRoomOptions) {
+  room.createRoom(opts);
+  showCreateForm.value = false;
+}
+
+watch(
+  () => room.currentRoom,
+  (r) => {
+    if (!r) return;
+
+    showCreateForm.value = false;
+    if (r.status === 'playing') {
+      router.push({ name: 'networked-game', params: { roomId: r.id }, query: { origin: 'home' } });
+    } else {
+      ensureRoomListeners();
+    }
+  }
+);
+
+watch(showServerBrowser, (open) => {
+  if (open) {
+    room.fetchRoomList();
+    roomListRefreshInterval = setInterval(() => {
+      room.fetchRoomList();
+    }, ROOM_LIST_REFRESH_MS);
+    return;
+  }
+
+  if (roomListRefreshInterval) {
+    clearInterval(roomListRefreshInterval);
+    roomListRefreshInterval = null;
+  }
+});
+
 onMounted(() => {
   const audio = new Audio('/music/intro.mp3');
   audio.loop = true;
@@ -51,9 +132,14 @@ onMounted(() => {
   audio.volume = isMusicMuted.value ? 0 : menuMusicVolume.value / 100;
   menuMusic.value = audio;
   audio.play().catch(() => {});
+
+  // Возврат из игры: если комната уже загружена в сторе, снова включаем подписки.
+  if (roomModalVisible.value) ensureRoomListeners();
 });
 
 onUnmounted(() => {
+  if (roomListRefreshInterval) clearInterval(roomListRefreshInterval);
+  cleanupRoomListeners?.();
   menuMusic.value?.pause();
   menuMusic.value = null;
 });
@@ -66,26 +152,52 @@ onUnmounted(() => {
 				<img src="/images/logo.png" alt="">
 			</div>
 
-      <router-link to="/lobby" class="menu-item" active-class="menu-item-active">
-        Играть
-      </router-link>
-      <router-link to="/maps" class="menu-item" active-class="menu-item-active">
-        Карты
-      </router-link>
-      <router-link to="/game/dust2" class="menu-item" active-class="menu-item-active">
+			<button
+				type="button"
+				class="menu-item menu-item-btn"
+				@click="handleNewGameBtnClick"
+			>
+				Новая игра
+			</button>
+
+      <button
+				type="button"
+				class="menu-item menu-item-btn-inline"
+				@click="openServerBrowser"
+			>
+        Найти серверы
+			</button>
+
+      <router-link
+				to="/game/dust2"
+				class="menu-item"
+				active-class="menu-item-active"
+			>
         Тренировка
       </router-link>
-      <button type="button" class="menu-item menu-item-btn" @click="logout">
+
+      <router-link
+				to="/settins"
+				class="menu-item"
+				active-class="menu-item-active"
+			>
+        Настройки
+      </router-link>
+
+      <button
+				type="button"
+				class="menu-item menu-item-btn"
+				@click="logout"
+			>
         Выйти
       </button>
     </nav>
+
     <div class="bottom-right">
       <div v-if="!isMusicMuted" class="music-indicator" aria-hidden="true">
-        <span class="music-bar"></span>
-        <span class="music-bar"></span>
-        <span class="music-bar"></span>
-        <span class="music-bar"></span>
+        <span v-for="i in 4" :key="i" class="music-bar" />
       </div>
+
       <label v-if="!isMusicMuted" class="music-volume-label" title="Громкость музыки">
         <input
           type="range"
@@ -106,6 +218,28 @@ onUnmounted(() => {
       </button>
       <span v-if="auth.user" class="username">{{ auth.user.username }}</span>
     </div>
+
+    <div
+			v-if="showCreateForm"
+			class="create-overlay"
+			@click.self="showCreateForm = false"
+		>
+      <div class="create-card panel-cs">
+        <h2 class="card-title">Новая игра</h2>
+
+        <CreateRoomForm
+          @submit="onCreateRoomSubmit"
+          @cancel="showCreateForm = false"
+        />
+      </div>
+    </div>
+
+    <ServerBrowserModal
+      v-if="showServerBrowser"
+      @close="closeServerBrowser"
+    />
+
+    <RoomSettingsModal v-if="roomModalVisible" />
   </div>
 </template>
 
@@ -117,6 +251,7 @@ onUnmounted(() => {
   background-image: url("/images/game-bg.jpg");
 	background-repeat: no-repeat;
 	background-size: cover;
+	background-position: center top;
 
 	&::after {
 		content: "";
@@ -127,7 +262,7 @@ onUnmounted(() => {
 		bottom: 0;
 		z-index: 1;
 		background-color: #000;
-		opacity: 0.7;
+		opacity: 0.65;
 	}
 }
 
@@ -168,6 +303,10 @@ onUnmounted(() => {
 
 .menu-item-btn {
   margin-top: 16px;
+}
+
+.menu-item-btn-inline {
+  margin-top: 0;
 }
 
 .bottom-right {
@@ -234,5 +373,28 @@ onUnmounted(() => {
 .username {
   font-size: 12px;
   color: var(--cs-text-dim);
+}
+
+.create-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.create-card {
+  padding: 24px;
+  border: 1px solid var(--cs-panel-border);
+  min-width: 320px;
+}
+
+.card-title {
+  margin-bottom: 16px;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  color: var(--cs-orange);
 }
 </style>

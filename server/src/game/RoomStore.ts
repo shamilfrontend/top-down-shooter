@@ -1,4 +1,4 @@
-import type { RoomState, RoomSlot, PendingPlayer, BotDifficulty } from 'top-down-cs-shared';
+import type { RoomState, RoomSlot, PendingPlayer, BotDifficulty, RoomListItem } from 'top-down-cs-shared';
 import type { TeamId } from '../types/lobby';
 
 const DEFAULT_MAP = 'dust2';
@@ -79,19 +79,26 @@ class RoomStoreClass {
     return undefined;
   }
 
-  list(): { id: string; name: string; map: string; maxPlayers: number; playerCount: number; hasPassword: boolean; status: 'waiting' | 'playing'; roundsToWin: number }[] {
+  list(): RoomListItem[] {
     return Array.from(this.rooms.values())
-      .filter((r) => r.status === 'waiting')
-      .map((r) => ({
-        id: r.id,
-        name: r.name,
-        map: r.map,
-        maxPlayers: r.maxPlayers,
-        playerCount: this.countPlayersInRoom(r),
-        hasPassword: !!r.password,
-        status: r.status,
-        roundsToWin: r.roundsToWin,
-      }));
+      .map((r) => {
+        const playerCount = this.countPlayersInRoom(r);
+        const isFull = playerCount >= r.maxPlayers;
+        const isJoinable = r.status === 'waiting' && !isFull;
+        return {
+          id: r.id,
+          name: r.name,
+          map: r.map,
+          maxPlayers: r.maxPlayers,
+          playerCount,
+          hasPassword: !!r.password,
+          status: r.status,
+          roundsToWin: r.roundsToWin,
+          isFull,
+          isJoinable,
+          unavailableReason: !isJoinable ? (r.status !== 'waiting' ? 'playing' : 'full') : undefined,
+        };
+      });
   }
 
   private countPlayersInRoom(room: Room): number {

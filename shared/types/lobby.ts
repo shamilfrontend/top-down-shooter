@@ -18,6 +18,9 @@ export interface RoomListItem {
   hasPassword: boolean;
   status: 'waiting' | 'playing';
   roundsToWin?: number;
+  isFull: boolean;
+  isJoinable: boolean;
+  unavailableReason?: 'playing' | 'full';
 }
 
 export type BotDifficulty = 'easy' | 'medium' | 'hard';

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRoomStore } from '@/stores/room';
 import { useSocket } from '@/composables/useSocket';
 import CreateRoomForm from '@/components/CreateRoomForm.vue';
 import JoinRoomModal from '@/components/JoinRoomModal.vue';
+import RoomSettingsModal from '@/components/RoomSettingsModal.vue';
 
 const router = useRouter();
 const room = useRoomStore();
@@ -37,12 +38,14 @@ watch(() => room.currentRoom, (r) => {
     showCreateForm.value = false;
     joinTarget.value = null;
     if (r.status === 'playing') {
-      router.push({ name: 'networked-game', params: { roomId: r.id } });
+      router.push({ name: 'networked-game', params: { roomId: r.id }, query: { origin: 'lobby' } });
     } else {
-      router.push({ name: 'room' });
+      // Комната отображается поверх страницы как модальное окно.
     }
   }
 });
+
+const roomModalVisible = computed(() => !!room.currentRoom && room.currentRoom.status !== 'playing');
 
 function openJoin(roomId: string, name: string, hasPassword: boolean) {
   joinTarget.value = { id: roomId, name, hasPassword };
@@ -88,6 +91,8 @@ function handleJoin(roomId: string, password?: string) {
       @submit="handleJoin"
       @close="joinTarget = null"
     />
+
+    <RoomSettingsModal v-if="roomModalVisible" />
 
     <main class="room-list">
       <button type="button" class="btn-cs" @click="room.fetchRoomList">Обновить</button>

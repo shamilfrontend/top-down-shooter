@@ -111,20 +111,20 @@ function exitToLobby() {
   connectionLost.value = false;
   roomStore.leaveRoom();
   gameOver.value = null;
-  router.push({ name: 'lobby' });
+  router.push({ name: 'home' });
 }
 
 function backToRoom() {
   gameOver.value = null;
   connectionLost.value = false;
-  router.push({ name: 'room' });
+  router.push({ name: 'home' });
 }
 
 async function init() {
   roomId.value = (route.params.roomId as string) || null;
   const canvas = canvasRef.value;
   if (!canvas || !roomId.value) {
-    router.push({ name: 'lobby' });
+    router.push({ name: 'home' });
     return;
   }
 
@@ -251,7 +251,7 @@ async function init() {
     });
   } catch (e) {
     console.error('Failed to init networked game:', e);
-    router.push({ name: 'lobby' });
+    router.push({ name: 'home' });
   }
 }
 

@@ -305,6 +305,7 @@ class GameSession {
         if (room) {
           room.status = 'waiting';
           this.io.to(this.roomId).emit('room:update', RoomStore.toState(room));
+          this.io.emit('room:list', RoomStore.list());
         }
         stopGameSession(this.roomId);
       }
