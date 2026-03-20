@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
+
+import { useAuthStore } from '@/stores/auth';
 import { useRoomStore } from '@/stores/room';
 import { useSocket } from '@/composables/useSocket';
 import CreateRoomForm from '@/components/CreateRoomForm.vue';
@@ -17,7 +18,11 @@ const MENU_MUSIC_VOLUME_KEY = 'menuMusicVolume';
 const menuMusic = ref<HTMLAudioElement | null>(null);
 const isMusicMuted = ref(localStorage.getItem('menuMusicMuted') === '1');
 const menuMusicVolume = ref(
-  Math.min(100, Math.max(0, parseInt(localStorage.getItem(MENU_MUSIC_VOLUME_KEY) ?? '80', 10) || 80))
+  Math.min(
+		100, Math.max(
+			0, parseInt(localStorage.getItem(MENU_MUSIC_VOLUME_KEY) ?? '80', 10) || 80
+		)
+	)
 );
 
 type CreateRoomOptions = {
@@ -177,7 +182,7 @@ onUnmounted(() => {
       </router-link>
 
       <router-link
-				to="/settins"
+				to="/settings"
 				class="menu-item"
 				active-class="menu-item-active"
 			>
