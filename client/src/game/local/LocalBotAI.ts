@@ -1,11 +1,11 @@
+import { hasLineOfSight as raycastHasLineOfSight, getWaypointAroundWall } from './raycast';
+
 export interface GameInput {
   up: boolean;
   down: boolean;
   left: boolean;
   right: boolean;
 }
-
-import { hasLineOfSight as raycastHasLineOfSight, getWaypointAroundWall } from './raycast';
 
 interface Wall {
   x: number;

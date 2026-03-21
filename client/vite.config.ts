@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Исходники shared/src: CJS dist/index.js с __exportStar не даёт Rollup статических named exports.
+      'top-down-cs-shared': fileURLToPath(new URL('../shared/src', import.meta.url)),
     },
   },
   server: {

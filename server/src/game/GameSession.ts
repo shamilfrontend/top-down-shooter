@@ -1,11 +1,19 @@
 import { Server } from 'socket.io';
 import path from 'path';
 import fs from 'fs/promises';
-import type { MapConfig } from 'top-down-cs-shared';
+import {
+  type MapConfig,
+  WEAPONS,
+  START_WEAPONS,
+  CREDITS_START,
+  CREDITS_KILL,
+  CREDITS_ROUND_WIN,
+  CREDITS_ROUND_LOSS,
+  AMMO_PRICE,
+} from 'top-down-cs-shared';
 import { mapsDir } from '../config/paths';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
-import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS, AMMO_PRICE } from './Weapons';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './Shooting';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
 import { computeBotAction, getBotName } from './BotAI';

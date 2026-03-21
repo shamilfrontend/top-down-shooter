@@ -1,6 +1,14 @@
-import type { MapConfig } from 'top-down-cs-shared';
+import {
+  type MapConfig,
+  WEAPONS,
+  START_WEAPONS,
+  CREDITS_START,
+  CREDITS_KILL,
+  CREDITS_ROUND_WIN,
+  CREDITS_ROUND_LOSS,
+  AMMO_PRICE,
+} from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
-import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS, AMMO_PRICE } from './local/weapons';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './local/raycast';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
 import { computeBotAction, getBotName } from './local/LocalBotAI';
