@@ -1,17 +1,12 @@
-import { hasLineOfSight as raycastHasLineOfSight, getWaypointAroundWall } from './raycast';
+import { hasLineOfSight as raycastHasLineOfSight, getWaypointAroundWall } from './bot-raycast';
+import type { Wall } from './map';
+import type { BotDifficulty } from './lobby';
 
 export interface GameInput {
   up: boolean;
   down: boolean;
   left: boolean;
   right: boolean;
-}
-
-interface Wall {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 interface PlayerLike {
@@ -22,7 +17,16 @@ interface PlayerLike {
   isAlive: boolean;
 }
 
-const BOT_NAMES = ['Bot Ivan', 'Bot Dmitry', 'Bot Alex', 'Bot Sergei'];
+const BOT_NAMES = [
+  'Bot Ivan',
+  'Bot Dmitry',
+  'Bot Alex',
+  'Bot Sergei',
+  'Bot Vlad',
+  'Bot Oleg',
+  'Bot Boris',
+  'Bot Yuri',
+];
 
 export function getBotName(index: number): string {
   return BOT_NAMES[index % BOT_NAMES.length];
@@ -34,8 +38,6 @@ function angleDiff(a: number, b: number): number {
   while (d < -Math.PI) d += 2 * Math.PI;
   return d;
 }
-
-export type BotDifficulty = 'easy' | 'medium' | 'hard';
 
 export interface BotMapContext {
   mapWidth: number;
@@ -70,7 +72,6 @@ function getNearestPickupByType(
   return { gx: best.x, gy: best.y };
 }
 
-/** Цель для движения, когда враг не виден: аптечка / патроны / броня / враги / спавн */
 function getHuntGoal(
   botX: number,
   botY: number,
@@ -85,7 +86,9 @@ function getHuntGoal(
   const needsHealth = health <= HEALTH_SEEK_THRESHOLD;
   const needsAmmo = ammoReserve <= AMMO_SEEK_THRESHOLD;
   const needsArmor = armor < ARMOR_SEEK_THRESHOLD;
-  const medkitGoal = needsHealth ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null;
+  const medkitGoal = needsHealth
+    ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit')
+    : null;
   const ammoGoal = needsAmmo ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'ammo') : null;
   const armorGoal = needsArmor ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null;
   const pickupGoal = medkitGoal ?? ammoGoal ?? armorGoal;
@@ -114,7 +117,6 @@ function getHuntGoal(
   return { gx: cx + jitter, gy: cy + (hash % 30 - 15) };
 }
 
-/** Радиус подбора пикапа в игре 25; бот идёт пока не подойдёт ближе этого порога */
 const PICKUP_SEEK_STOP_DIST = 18;
 
 function applyMoveToward(input: GameInput, botX: number, botY: number, gx: number, gy: number) {
@@ -130,15 +132,16 @@ function applyMoveToward(input: GameInput, botX: number, botY: number, gx: numbe
   else if (my < -0.25) input.up = true;
 }
 
-/** Цель движения: если прямая перекрыта стеной — идём к углу стены (обход). */
 function getMoveTarget(
-  botX: number, botY: number,
-  gx: number, gy: number,
+  botX: number,
+  botY: number,
+  gx: number,
+  gy: number,
   walls: Wall[]
 ): { gx: number; gy: number } {
   if (raycastHasLineOfSight(botX, botY, gx, gy, walls)) return { gx, gy };
   const wp = getWaypointAroundWall(botX, botY, gx, gy, walls);
-  return wp ?? { gx, gy };
+  return wp ? { gx: wp.wx, gy: wp.wy } : { gx, gy };
 }
 
 export function computeBotAction(
@@ -165,7 +168,6 @@ export function computeBotAction(
   const moveFreq = difficulty === 'easy' ? 0.3 : difficulty === 'medium' ? 0.5 : 0.85;
   const huntChance = difficulty === 'easy' ? 0.4 : difficulty === 'medium' ? 0.75 : 0.95;
 
-  // Найти ближайшего видимого врага
   let target: PlayerLike | null = null;
   let minDist = Infinity;
   for (const e of enemies) {
@@ -185,17 +187,22 @@ export function computeBotAction(
 
   const needsAmmo = totalAmmo <= AMMO_SEEK_THRESHOLD;
   const ammoGoal = needsAmmo ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'ammo') : null;
-  // Когда патроны кончились — в первую очередь ищем патроны по карте
-  const pickupGoal = (totalAmmo === 0 && ammoGoal) ? ammoGoal : (ammoGoal ?? (health <= HEALTH_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit') : null)
-    ?? (armor < ARMOR_SEEK_THRESHOLD ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor') : null));
+  const pickupGoal =
+    totalAmmo === 0 && ammoGoal
+      ? ammoGoal
+      : (ammoGoal ??
+          (health <= HEALTH_SEEK_THRESHOLD
+            ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'medkit')
+            : null) ??
+          (armor < ARMOR_SEEK_THRESHOLD
+            ? getNearestPickupByType(botX, botY, mapContext?.pickups, 'armor')
+            : null));
 
   if (totalAmmo === 0 && ammoGoal) {
-    // Патроны кончились — идём к ближайшей пачке патронов
     const moveTo = getMoveTarget(botX, botY, ammoGoal.gx, ammoGoal.gy, walls);
     applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);
     angle = Math.atan2(moveTo.gy - botY, moveTo.gx - botX);
   } else if (ammo === 0 && ammoReserve > 0) {
-    // Магазин пуст, но есть резерв — перезарядка + уклонение от врага
     wantReload = true;
     if (target) {
       const away = Math.atan2(botY - target.y, botX - target.x);
@@ -208,13 +215,11 @@ export function computeBotAction(
       angle = Math.atan2(target.y - botY, target.x - botX);
     }
   } else if (target && Math.random() < reactionChance && ammo > 0) {
-    // Есть видимая цель и патроны в магазине — бой
     const toTarget = Math.atan2(target.y - botY, target.x - botX);
     const err = (Math.random() - 0.5) * 2 * aimError * Math.PI;
     angle = toTarget + err;
 
     const diff = Math.abs(angleDiff(botAngle, angle));
-    // Стрелять только если враг в пределах дальности оружия
     if (diff < 0.15 && minDist <= weaponRange) shoot = true;
 
     if (minDist > 250 && Math.random() < moveFreq) {
@@ -235,7 +240,6 @@ export function computeBotAction(
       else if (my < -0.3) input.up = true;
     }
   } else {
-    // Нет видимой цели — патруль / поиск пикапов (с обходом стен)
     if (pickupGoal) {
       const moveTo = getMoveTarget(botX, botY, pickupGoal.gx, pickupGoal.gy, walls);
       applyMoveToward(input, botX, botY, moveTo.gx, moveTo.gy);

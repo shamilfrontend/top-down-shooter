@@ -1,3 +1,5 @@
+import type { GameInput } from 'top-down-cs-shared';
+
 interface Wall {
   x: number;
   y: number;
@@ -19,12 +21,7 @@ const FRICTION = 0.85;
 const MAX_PHYSICS_DT = 0.008; // суб-шаги для предотвращения прохождения сквозь стены
 const OBSTACLE_SIZES: Record<string, number> = { crate: 30, barrel: 20 };
 
-export interface GameInput {
-  up: boolean;
-  down: boolean;
-  left: boolean;
-  right: boolean;
-}
+export type { GameInput };
 
 export interface GamePlayerState {
   x: number;

@@ -1,5 +1,6 @@
 import {
   type MapConfig,
+  type BotDifficulty,
   WEAPONS,
   START_WEAPONS,
   CREDITS_START,
@@ -7,11 +8,12 @@ import {
   CREDITS_ROUND_WIN,
   CREDITS_ROUND_LOSS,
   AMMO_PRICE,
+  computeBotAction,
+  getBotName,
 } from 'top-down-cs-shared';
 import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './local/raycast';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
-import { computeBotAction, getBotName } from './local/LocalBotAI';
 
 const TICK_RATE = 20;
 const TICK_MS = 1000 / TICK_RATE;
@@ -19,7 +21,7 @@ const PLAYER_RADIUS = 23;
 const ROUND_TIME_MS = 180 * 1000;
 const ROUND_END_DELAY_MS = 5000;
 const ROUND_BUY_TIME_MS = 7000;
-export type BotDifficulty = 'easy' | 'medium' | 'hard';
+export type { BotDifficulty };
 
 export interface LocalGameSessionOptions {
   ctBotCount?: number;

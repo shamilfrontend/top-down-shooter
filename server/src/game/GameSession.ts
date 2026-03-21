@@ -10,13 +10,14 @@ import {
   CREDITS_ROUND_WIN,
   CREDITS_ROUND_LOSS,
   AMMO_PRICE,
+  computeBotAction,
+  getBotName,
 } from 'top-down-cs-shared';
 import { mapsDir } from '../config/paths';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
 import { raycast, getWallDist, MAX_SHOT_RANGE } from './Shooting';
 import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
-import { computeBotAction, getBotName } from './BotAI';
 
 const TICK_RATE = 20;
 const PLAYER_RADIUS = 23;
@@ -501,6 +502,15 @@ class GameSession {
           y: op.y,
           isAlive: op.isAlive,
         }));
+        const mapContext = {
+          mapWidth: this.map.width,
+          mapHeight: this.map.height,
+          enemySpawnPoints: (p.team === 'ct' ? this.map.spawnPoints.t : this.map.spawnPoints.ct).map((s) => ({
+            x: s.x + 15,
+            y: s.y + 15,
+          })),
+          pickups: activePickups.map((pu) => ({ x: pu.x, y: pu.y, type: pu.type })),
+        };
         const action = computeBotAction(
           p.socketId,
           p.team,
@@ -508,10 +518,15 @@ class GameSession {
           p.y,
           p.angle,
           playersList,
-          this.map,
-          this.botDifficulties.get(p.socketId) ?? 'medium',
+          this.map.walls,
           this.tickCount,
-          { pickups: activePickups, ammo: p.ammo, ammoReserve: p.ammoReserve, health: p.health, armor: p.armor, weaponRange: MAX_SHOT_RANGE }
+          this.botDifficulties.get(p.socketId) ?? 'medium',
+          mapContext,
+          p.ammo,
+          p.ammoReserve,
+          p.health,
+          p.armor,
+          MAX_SHOT_RANGE
         );
         p.lastInput = action.input;
         p.angle = action.angle;
