@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
+
 import { mapsDir } from '../config/paths';
 
 const router = Router();
@@ -14,7 +15,11 @@ router.get('/', async (_req, res) => {
         .map(async (f) => {
           const data = await fs.readFile(path.join(mapsDir, f), 'utf-8');
           const map = JSON.parse(data);
-          return { id: map.id, name: map.name };
+
+          return {
+            id: map.id,
+            name: map.name
+          };
         })
     );
     res.json(maps);
@@ -30,6 +35,7 @@ router.get('/:id', async (req, res) => {
     const safeId = id.replace(/[^a-z0-9-]/gi, '');
     const filePath = path.join(mapsDir, `${safeId}.json`);
     const data = await fs.readFile(filePath, 'utf-8');
+
     res.json(JSON.parse(data));
   } catch {
     res.status(404).json({ error: 'Карта не найдена' });

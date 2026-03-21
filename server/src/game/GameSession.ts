@@ -3,7 +3,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import type { MapConfig } from 'top-down-cs-shared';
 import { mapsDir } from '../config/paths';
-import { updateArmor } from '../db/users';
 import { RoomStore } from './RoomStore';
 import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
 import { WEAPONS, START_WEAPONS, CREDITS_START, CREDITS_KILL, CREDITS_ROUND_WIN, CREDITS_ROUND_LOSS, AMMO_PRICE } from './Weapons';
@@ -283,15 +282,6 @@ class GameSession {
       this.io.to(this.roomId).emit('game:event', { type: 'roundEnd', winner, roundWins: this.roundWins });
 
       if (this.roundWins.ct >= this.roundsToWin || this.roundWins.t >= this.roundsToWin) {
-        for (const p of this.players.values()) {
-          if (p.team === winner && p.userId) {
-            try {
-              updateArmor(p.userId, p.armor ?? 0);
-            } catch {
-              // DB may be unavailable in tests
-            }
-          }
-        }
         const finalPlayers = Array.from(this.players.values()).map((p) => ({
           id: p.socketId,
           username: p.username,

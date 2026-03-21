@@ -1,6 +1,11 @@
 import { Server, Socket } from 'socket.io';
+
 import { RoomStore } from '../game/RoomStore';
-import { startGameSession, getGameSession, stopGameSession } from '../game/GameSession';
+import {
+  startGameSession,
+  getGameSession,
+  stopGameSession
+} from '../game/GameSession';
 
 interface SocketAuth {
   userId?: string;
@@ -28,7 +33,16 @@ export function setupSocketHandlers(io: Server): void {
       socket.emit('pong', { t: payload?.t ?? Date.now() });
     });
 
-    socket.on('room:create', (options: { name: string; password?: string; map?: string; maxPlayers?: number; roundsToWin?: number; team?: 'ct' | 't' }) => {
+    socket.on('room:create', (
+        options: {
+          name: string;
+          password?: string;
+          map?: string;
+          maxPlayers?: number;
+          roundsToWin?: number;
+          team?: 'ct' | 't'
+        }
+    ) => {
       const room = RoomStore.create(socket.id, auth?.userId, username, {
         name: options.name || 'Комната',
         password: options.password,
@@ -135,6 +149,7 @@ export function setupSocketHandlers(io: Server): void {
       if (!room?.id) return;
       const session = getGameSession(room.id);
       if (!session) return;
+
       session.setInput(socket.id, {
         up: !!input.up,
         down: !!input.down,
@@ -170,24 +185,30 @@ export function setupSocketHandlers(io: Server): void {
     socket.on('player:switchWeapon', (slot: number) => {
       const room = RoomStore.getRoomBySocket(socket.id);
       if (!room?.id) return;
+
       const session = getGameSession(room.id);
       if (session && (slot === 0 || slot === 1)) session.switchWeapon(socket.id, slot as 0 | 1);
     });
 
     socket.on('disconnect', () => {
       const room = RoomStore.getRoomBySocket(socket.id);
+
       if (room) {
         const session = getGameSession(room.id);
         if (session) session.removePlayer(socket.id);
       }
+
       const result = RoomStore.leave(socket.id);
+
       if (result) {
         const r = RoomStore.get(result.roomId);
+
         if (r) {
           io.to(result.roomId).emit('room:update', RoomStore.toState(r));
         } else {
           stopGameSession(result.roomId);
         }
+
         broadcastRoomList();
       }
     });
