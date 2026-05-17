@@ -74,10 +74,12 @@ const ROOM_LIST_REFRESH_MS = 8000;
 const roomModalVisible = computed(() => !!room.currentRoom && room.currentRoom.status !== 'playing');
 
 function ensureRoomListeners() {
-  if (cleanupRoomListeners) return;
-  // Подключаем сокет и подписки только когда реально открывается/нужна модалка комнаты.
   connect();
-  cleanupRoomListeners = room.setupListeners() ?? null;
+  if (!cleanupRoomListeners) {
+    cleanupRoomListeners = room.setupListeners() ?? null;
+  } else {
+    room.ensureListeners();
+  }
 }
 
 const handleNewGameBtnClick = (): void => {
@@ -145,6 +147,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (roomListRefreshInterval) clearInterval(roomListRefreshInterval);
   cleanupRoomListeners?.();
+  cleanupRoomListeners = null;
   menuMusic.value?.pause();
   menuMusic.value = null;
 });

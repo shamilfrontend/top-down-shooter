@@ -36,7 +36,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     fireRateMs: 90,
     reloadTimeMs: 3100,
     spread: 0.03,
-    price: 3500,
+    price: 3000,
     maxReserve: 120,
   },
   ak47: {
@@ -47,19 +47,8 @@ export const WEAPONS: Record<string, WeaponDef> = {
     fireRateMs: 100,
     reloadTimeMs: 2500,
     spread: 0.04,
-    price: 5000,
+    price: 4000,
     maxReserve: 120,
-  },
-  awp: {
-    id: 'awp',
-    name: 'AWP',
-    damage: 100,
-    magazineSize: 5,
-    fireRateMs: 1100,
-    reloadTimeMs: 3700,
-    spread: 0.001,
-    price: 4750,
-    maxReserve: 30,
   },
 };
 

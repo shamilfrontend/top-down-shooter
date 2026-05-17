@@ -1,13 +1,6 @@
-import { hasLineOfSight, getWaypointAroundWall } from 'top-down-cs-shared';
+import type { Wall } from './map';
 
-interface Wall {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface PlayerHitbox {
+export interface ShotRaycastPlayerHitbox {
   id: string;
   team: 'ct' | 't';
   x: number;
@@ -16,8 +9,14 @@ interface PlayerHitbox {
 }
 
 function lineSegmentIntersection(
-  x1: number, y1: number, x2: number, y2: number,
-  x3: number, y3: number, x4: number, y4: number
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+  x4: number,
+  y4: number
 ): { x: number; y: number; t: number } | null {
   const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
   if (Math.abs(denom) < 1e-10) return null;
@@ -30,8 +29,12 @@ function lineSegmentIntersection(
 }
 
 function pointToSegmentDist(
-  px: number, py: number,
-  x1: number, y1: number, x2: number, y2: number
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
 ): { dist: number; t: number } {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -49,8 +52,10 @@ function pointToSegmentDist(
 }
 
 function raycastWalls(
-  ox: number, oy: number,
-  dx: number, dy: number,
+  ox: number,
+  oy: number,
+  dx: number,
+  dy: number,
   maxDist: number,
   walls: Wall[]
 ): number {
@@ -73,13 +78,11 @@ function raycastWalls(
   return closestT * maxDist;
 }
 
-export { hasLineOfSight, getWaypointAroundWall };
-
 export const MAX_SHOT_RANGE = 10000;
 
-/** Расстояние до ближайшей стены по лучу (для трейлов пуль) */
 export function getWallDist(
-  ox: number, oy: number,
+  ox: number,
+  oy: number,
   angle: number,
   maxDist: number,
   walls: Wall[]
@@ -90,10 +93,13 @@ export function getWallDist(
 }
 
 export function raycast(
-  ox: number, oy: number, angle: number,
-  range: number, spread: number,
+  ox: number,
+  oy: number,
+  angle: number,
+  range: number,
+  spread: number,
   walls: Wall[],
-  players: PlayerHitbox[],
+  players: ShotRaycastPlayerHitbox[],
   excludeId: string
 ): { hitId: string; dist: number } | null {
   const spreadAngle = (Math.random() - 0.5) * spread * Math.PI;

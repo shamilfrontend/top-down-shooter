@@ -4,10 +4,10 @@
   "version": "1.0.0",
   "packageManager": "yarn@1.22.22",
   "scripts": {
-    "dev": "yarn workspace top-down-cs-shared build && concurrently \"yarn workspace top-down-cs-server dev\" \"yarn workspace top-down-cs-client dev\"",
-    "dev:server": "yarn workspace top-down-cs-shared build && yarn workspace top-down-cs-server dev",
-    "dev:client": "yarn workspace top-down-cs-shared build && yarn workspace top-down-cs-client dev",
-    "build": "yarn workspace top-down-cs-shared build && yarn workspace top-down-cs-server build && yarn workspace top-down-cs-client build",
+    "dev": "yarn workspace shootout-shared build && concurrently \"yarn workspace top-down-cs-server dev\" \"yarn workspace top-down-cs-client dev\"",
+    "dev:server": "yarn workspace shootout-shared build && yarn workspace top-down-cs-server dev",
+    "dev:client": "yarn workspace shootout-shared build && yarn workspace top-down-cs-client dev",
+    "build": "yarn workspace shootout-shared build && yarn workspace top-down-cs-server build && yarn workspace top-down-cs-client build",
     "install:all": "yarn install"
   },
   "workspaces": ["client", "server", "shared"],

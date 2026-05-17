@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import {
   type MapConfig,
+  type GameInput,
+  type PlayerPhysicsState as GamePlayerState,
   WEAPONS,
   START_WEAPONS,
   CREDITS_START,
@@ -12,15 +14,22 @@ import {
   AMMO_PRICE,
   computeBotAction,
   getBotName,
-} from 'top-down-cs-shared';
+  updatePlayerPhysics as updatePlayer,
+  PLAYER_RADIUS,
+  raycast,
+  getWallDist,
+  MAX_SHOT_RANGE,
+  createPickups,
+  processPickups,
+  getActivePickups,
+  relocatePickups,
+  PICKUP_RELOCATE_MS,
+  type PickupItem,
+} from 'shootout-shared';
 import { mapsDir } from '../config/paths';
 import { RoomStore } from './RoomStore';
-import { updatePlayer, type GameInput, type GamePlayerState } from './ServerPhysics';
-import { raycast, getWallDist, MAX_SHOT_RANGE } from './Shooting';
-import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './Pickups';
 
 const TICK_RATE = 20;
-const PLAYER_RADIUS = 23;
 const TICK_MS = 1000 / TICK_RATE;
 const ROUND_TIME_MS = 180 * 1000; // 3 min
 const ROUND_END_DELAY_MS = 5000; // 5 sec before next round
@@ -425,7 +434,7 @@ class GameSession {
     const def = WEAPONS[weaponId];
     if (!def || !def.price) return;
     if (p.credits < def.price) return;
-    const buyablePrimary = ['ak47', 'm4', 'awp'];
+    const buyablePrimary = ['ak47', 'm4'];
     if (buyablePrimary.includes(weaponId)) {
       p.credits -= def.price;
       p.weapons[0] = weaponId;

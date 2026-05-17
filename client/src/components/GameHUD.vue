@@ -21,14 +21,13 @@ const props = defineProps<{
   reloadEndTime?: number;
 }>();
 
-const RELOAD_MS: Record<string, number> = { pm: 2200, m4: 3100, ak47: 2500, awp: 3700 };
-const MAGAZINE_SIZE: Record<string, number> = { pm: 8, m4: 30, ak47: 30, awp: 5 };
+const RELOAD_MS: Record<string, number> = { pm: 2200, m4: 3100, ak47: 2500 };
+const MAGAZINE_SIZE: Record<string, number> = { pm: 8, m4: 30, ak47: 30 };
 
 const weaponNames: Record<string, string> = {
   pm: 'Пистолет Макарова',
   ak47: 'AK-47',
   m4: 'M4A1',
-  awp: 'AWP',
 };
 
 const currentWeaponImgFailed = ref(false);
@@ -96,7 +95,6 @@ const weaponIconWidth: Record<string, number> = {
   pm: 20,
   ak47: 28,
   m4: 26,
-  awp: 32,
 };
 
 // 1 — основное (слот 0), 2 — пистолет (слот 1)

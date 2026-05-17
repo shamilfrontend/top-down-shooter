@@ -1,20 +1,16 @@
-import type { MapConfig, Wall } from 'top-down-cs-shared';
+import type { GameInput } from './bot-ai';
+import type { MapConfig, Wall } from './map';
 
-const PLAYER_RADIUS = 23;
-const OBSTACLE_SIZES: Record<string, number> = { crate: 30, barrel: 20 };
-const MOVE_SPEED = 2200; // скорость перемещения игрока
+export type PhysicsMap = Pick<MapConfig, 'width' | 'height' | 'walls' | 'obstacles'>;
+
+export const PLAYER_RADIUS = 23;
+export const MOVE_SPEED = 2200; // скорость перемещения игрока
 const ACCELERATION = 5000;
 const FRICTION = 0.85;
 const MAX_PHYSICS_DT = 0.008; // суб-шаги для предотвращения прохождения сквозь стены
+const OBSTACLE_SIZES: Record<string, number> = { crate: 30, barrel: 20 };
 
-export interface InputState {
-  up: boolean;
-  down: boolean;
-  left: boolean;
-  right: boolean;
-}
-
-export interface LocalPlayerState {
+export interface PlayerPhysicsState {
   x: number;
   y: number;
   vx: number;
@@ -44,9 +40,8 @@ function resolveCircleRect(
   r: number,
   wall: Wall
 ): { x: number; y: number } {
-  const { x: rx, y: ry, width: rw, height: rh } = wall;
-  const closestX = Math.max(rx, Math.min(cx, rx + rw));
-  const closestY = Math.max(ry, Math.min(cy, ry + rh));
+  const closestX = Math.max(wall.x, Math.min(cx, wall.x + wall.width));
+  const closestY = Math.max(wall.y, Math.min(cy, wall.y + wall.height));
   const dx = cx - closestX;
   const dy = cy - closestY;
   const distSq = dx * dx + dy * dy;
@@ -59,8 +54,13 @@ function resolveCircleRect(
 }
 
 function stepPhysics(
-  x: number, y: number, vx: number, vy: number,
-  input: InputState, map: MapConfig, dt: number
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  input: GameInput,
+  map: PhysicsMap,
+  dt: number
 ): { x: number; y: number; vx: number; vy: number } {
   const moveX = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const moveY = (input.down ? 1 : 0) - (input.up ? 1 : 0);
@@ -83,7 +83,7 @@ function stepPhysics(
   nx = Math.max(PLAYER_RADIUS, Math.min(map.width - PLAYER_RADIUS, nx));
   ny = Math.max(PLAYER_RADIUS, Math.min(map.height - PLAYER_RADIUS, ny));
 
-  for (const wall of map.walls) {
+  const resolve = (wall: Wall) => {
     if (checkCircleRect(nx, ny, PLAYER_RADIUS, wall.x, wall.y, wall.width, wall.height)) {
       const resolved = resolveCircleRect(nx, ny, PLAYER_RADIUS, wall);
       nx = resolved.x;
@@ -98,39 +98,23 @@ function stepPhysics(
         nvy -= velDot * nny * 1.2;
       }
     }
-  }
+  };
 
+  for (const wall of map.walls) resolve(wall);
   for (const obs of map.obstacles) {
     const size = OBSTACLE_SIZES[obs.type] ?? 25;
-    const rx = obs.x;
-    const ry = obs.y;
-    const rw = size;
-    const rh = size;
-    if (checkCircleRect(nx, ny, PLAYER_RADIUS, rx, ry, rw, rh)) {
-      const resolved = resolveCircleRect(nx, ny, PLAYER_RADIUS, { x: rx, y: ry, width: rw, height: rh });
-      nx = resolved.x;
-      ny = resolved.y;
-      const closestX = Math.max(rx, Math.min(nx, rx + rw));
-      const closestY = Math.max(ry, Math.min(ny, ry + rh));
-      const nnx = (nx - closestX) / (PLAYER_RADIUS || 1);
-      const nny = (ny - closestY) / (PLAYER_RADIUS || 1);
-      const velDot = nvx * nnx + nvy * nny;
-      if (velDot < 0) {
-        nvx -= velDot * nnx * 1.2;
-        nvy -= velDot * nny * 1.2;
-      }
-    }
+    resolve({ x: obs.x, y: obs.y, width: size, height: size });
   }
 
   return { x: nx, y: ny, vx: nvx, vy: nvy };
 }
 
-export function updateLocalPlayer(
-  state: LocalPlayerState,
-  input: InputState,
-  map: MapConfig,
+export function updatePlayerPhysics(
+  state: PlayerPhysicsState,
+  input: GameInput,
+  map: PhysicsMap,
   dt: number
-): LocalPlayerState {
+): PlayerPhysicsState {
   let { x, y, vx, vy, angle } = state;
   let remaining = dt;
 
@@ -146,5 +130,3 @@ export function updateLocalPlayer(
 
   return { x, y, vx, vy, angle };
 }
-
-export { PLAYER_RADIUS, MOVE_SPEED };

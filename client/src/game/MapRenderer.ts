@@ -1,4 +1,4 @@
-import type { MapConfig } from 'top-down-cs-shared';
+import type { MapConfig } from 'shootout-shared';
 
 const OBSTACLE_SIZES: Record<string, number> = { crate: 30, barrel: 20 };
 

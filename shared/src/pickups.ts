@@ -1,19 +1,15 @@
-interface Wall {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+import type { Wall } from './map';
 
 const PICKUP_RADIUS = 25;
 const AMMO_RESPAWN_MS = 30000;
 const MEDKIT_RESPAWN_MS = 45000;
 const ARMOR_RESPAWN_MS = 40000;
-const AMMO_MAGAZINES = 1;
-const ARMOR_AMOUNT = 10;
-const ARMOR_MAX = 100;
 /** Каждые 15 с невзятые пикапы переносятся в новые позиции */
 export const PICKUP_RELOCATE_MS = 15000;
+const AMMO_MAGAZINES = 1;
+const MEDKIT_HP = 20;
+const ARMOR_AMOUNT = 10;
+const ARMOR_MAX = 100;
 
 function isInWall(x: number, y: number, walls: Wall[], padding = 40): boolean {
   for (const w of walls) {
@@ -43,7 +39,30 @@ export interface PickupItem {
   respawnAt: number;
 }
 
-export function createPickups(map: { width: number; height: number; walls: Wall[] }, count: { ammo: number; medkit: number; armor?: number }): PickupItem[] {
+/** Игрок для коллизии с пикапами: `id` (локально) или `socketId` (сервер) — для события taken. */
+export interface PickupPlayer {
+  id?: string;
+  socketId?: string;
+  x: number;
+  y: number;
+  health: number;
+  armor?: number;
+  weapon: string;
+  ammoReserve: number;
+  weaponAmmo?: Record<string, { ammo: number; reserve: number }>;
+  isAlive: boolean;
+}
+
+function pickupPlayerId(pl: PickupPlayer): string {
+  if (pl.id != null) return pl.id;
+  if (pl.socketId != null) return pl.socketId;
+  throw new Error('PickupPlayer must have id or socketId');
+}
+
+export function createPickups(
+  map: { width: number; height: number; walls: Wall[] },
+  count: { ammo: number; medkit: number; armor?: number }
+): PickupItem[] {
   const items: PickupItem[] = [];
   const used = new Set<string>();
 
@@ -83,12 +102,12 @@ export function relocatePickups(
 
 export function processPickups(
   pickups: PickupItem[],
-  players: Array<{ id: string; x: number; y: number; health: number; armor?: number; weapon: string; ammoReserve: number; weaponAmmo?: Record<string, { ammo: number; reserve: number }>; isAlive: boolean }>,
+  players: PickupPlayer[],
   getMagazineSize: (weaponId: string) => number,
   now: number,
-  onPickup?: (type: 'ammo' | 'medkit' | 'armor') => void,
-  getMaxReserve?: (weaponId: string) => number
-): void {
+  getMaxReserve?: (weaponId: string) => number | undefined
+): Array<{ playerId: string; type: 'ammo' | 'medkit' | 'armor' }> {
+  const taken: Array<{ playerId: string; type: 'ammo' | 'medkit' | 'armor' }> = [];
   for (const p of pickups) {
     if (p.respawnAt > now) continue;
 
@@ -106,20 +125,24 @@ export function processPickups(
         if (pl.weaponAmmo?.[pl.weapon]) pl.weaponAmmo[pl.weapon].reserve = pl.ammoReserve;
         p.respawnAt = now + AMMO_RESPAWN_MS;
       } else if (p.type === 'medkit') {
-        pl.health = Math.min(100, pl.health + 20);
+        pl.health = Math.min(100, pl.health + MEDKIT_HP);
         p.respawnAt = now + MEDKIT_RESPAWN_MS;
       } else if (p.type === 'armor') {
         const cur = pl.armor ?? 0;
         pl.armor = Math.min(ARMOR_MAX, cur + ARMOR_AMOUNT);
         p.respawnAt = now + ARMOR_RESPAWN_MS;
       }
-      onPickup?.(p.type);
+      taken.push({ playerId: pickupPlayerId(pl), type: p.type });
       break;
     }
   }
+  return taken;
 }
 
-export function getActivePickups(pickups: PickupItem[], now: number): Array<{ id: string; type: string; x: number; y: number }> {
+export function getActivePickups(
+  pickups: PickupItem[],
+  now: number
+): Array<{ id: string; type: string; x: number; y: number }> {
   return pickups
     .filter((p) => p.respawnAt <= now)
     .map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y }));

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { RoomState, RoomListItem } from 'top-down-cs-shared';
+import type { Socket } from 'socket.io-client';
+import type { RoomState, RoomListItem } from 'shootout-shared';
 
 import { useSocket } from '@/composables/useSocket';
 
@@ -11,11 +12,84 @@ export const useRoomStore = defineStore('room', () => {
 
   const { connect, socket } = useSocket();
 
+  let listenersSocket: Socket | null = null;
+  let removeListeners: (() => void) | null = null;
+
   const isInRoom = computed(() => !!currentRoom.value);
 
-  function fetchRoomList() {
+  function attachListeners(s: Socket) {
+    removeListeners?.();
+    removeListeners = null;
+    listenersSocket = null;
+
+    const onList = (list: RoomListItem[]) => {
+      roomList.value = list;
+    };
+    const onCreated = (room: RoomState) => {
+      currentRoom.value = room;
+      fetchRoomList();
+    };
+    const onJoined = (room: RoomState) => {
+      currentRoom.value = room;
+    };
+    const onUpdate = (room: RoomState) => {
+      currentRoom.value = room;
+    };
+    const onLeft = () => {
+      currentRoom.value = null;
+    };
+    const onError = (msg: string) => {
+      error.value = msg;
+    };
+    const onStarting = (data: { room: RoomState; mapId: string }) => {
+      currentRoom.value = data.room;
+    };
+
+    s.on('room:list', onList);
+    s.on('room:created', onCreated);
+    s.on('room:joined', onJoined);
+    s.on('room:update', onUpdate);
+    s.on('room:left', onLeft);
+    s.on('room:error', onError);
+    s.on('game:starting', onStarting);
+
+    removeListeners = () => {
+      s.off('room:list', onList);
+      s.off('room:created', onCreated);
+      s.off('room:joined', onJoined);
+      s.off('room:update', onUpdate);
+      s.off('room:left', onLeft);
+      s.off('room:error', onError);
+      s.off('game:starting', onStarting);
+    };
+    listenersSocket = s;
+  }
+
+  function ensureListeners() {
     const s = connect();
-    s.emit('room:list');
+    if (listenersSocket === s && removeListeners) return;
+    attachListeners(s);
+  }
+
+  function teardownListeners() {
+    removeListeners?.();
+    removeListeners = null;
+    listenersSocket = null;
+  }
+
+  function emitWhenConnected(event: string, payload?: unknown) {
+    const s = connect();
+    ensureListeners();
+    const emit = () => {
+      if (payload === undefined) s.emit(event);
+      else s.emit(event, payload);
+    };
+    if (s.connected) emit();
+    else s.once('connect', emit);
+  }
+
+  function fetchRoomList() {
+    emitWhenConnected('room:list');
   }
 
   function createRoom(
@@ -29,14 +103,12 @@ export const useRoomStore = defineStore('room', () => {
       }
     ) {
     error.value = null;
-    const s = connect();
-    s.emit('room:create', options);
+    emitWhenConnected('room:create', options);
   }
 
   function joinRoom(roomId: string, password?: string) {
     error.value = null;
-    const s = connect();
-    s.emit('room:join', { roomId, password });
+    emitWhenConnected('room:join', { roomId, password });
   }
 
   function leaveRoom() {
@@ -66,48 +138,8 @@ export const useRoomStore = defineStore('room', () => {
   }
 
   function setupListeners() {
-    const s = socket.value;
-    if (!s) return;
-
-    const onList = (list: RoomListItem[]) => {
-      roomList.value = list;
-    };
-    const onCreated = (room: RoomState) => {
-      currentRoom.value = room;
-    };
-    const onJoined = (room: RoomState) => {
-      currentRoom.value = room;
-    };
-    const onUpdate = (room: RoomState) => {
-      currentRoom.value = room;
-    };
-    const onLeft = () => {
-      currentRoom.value = null;
-    };
-    const onError = (msg: string) => {
-      error.value = msg;
-    };
-    const onStarting = (data: { room: RoomState; mapId: string }) => {
-      currentRoom.value = data.room;
-    };
-
-    s.on('room:list', onList);
-    s.on('room:created', onCreated);
-    s.on('room:joined', onJoined);
-    s.on('room:update', onUpdate);
-    s.on('room:left', onLeft);
-    s.on('room:error', onError);
-    s.on('game:starting', onStarting);
-
-    return () => {
-      s.off('room:list', onList);
-      s.off('room:created', onCreated);
-      s.off('room:joined', onJoined);
-      s.off('room:update', onUpdate);
-      s.off('room:left', onLeft);
-      s.off('room:error', onError);
-      s.off('game:starting', onStarting);
-    };
+    ensureListeners();
+    return () => teardownListeners();
   }
 
   function clearError() {
@@ -129,6 +161,8 @@ export const useRoomStore = defineStore('room', () => {
     removeBot,
     startGame,
     setupListeners,
+    ensureListeners,
+    teardownListeners,
     clearError,
   };
 });

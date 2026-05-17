@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import type { MapConfig } from 'top-down-cs-shared';
+import type { MapConfig } from 'shootout-shared';
 
 const API_BASE = '/api';
 

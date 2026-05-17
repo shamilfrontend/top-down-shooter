@@ -1,6 +1,8 @@
 import {
   type MapConfig,
   type BotDifficulty,
+  type GameInput as InputState,
+  type PlayerPhysicsState as LocalPlayerState,
   WEAPONS,
   START_WEAPONS,
   CREDITS_START,
@@ -10,14 +12,21 @@ import {
   AMMO_PRICE,
   computeBotAction,
   getBotName,
-} from 'top-down-cs-shared';
-import { updateLocalPlayer, type InputState, type LocalPlayerState } from './Physics';
-import { raycast, getWallDist, MAX_SHOT_RANGE } from './local/raycast';
-import { createPickups, processPickups, getActivePickups, relocatePickups, PICKUP_RELOCATE_MS, type PickupItem } from './local/localPickups';
+  updatePlayerPhysics as updateLocalPlayer,
+  PLAYER_RADIUS,
+  raycast,
+  getWallDist,
+  MAX_SHOT_RANGE,
+  createPickups,
+  processPickups,
+  getActivePickups,
+  relocatePickups,
+  PICKUP_RELOCATE_MS,
+  type PickupItem,
+} from 'shootout-shared';
 
 const TICK_RATE = 20;
 const TICK_MS = 1000 / TICK_RATE;
-const PLAYER_RADIUS = 23;
 const ROUND_TIME_MS = 180 * 1000;
 const ROUND_END_DELAY_MS = 5000;
 const ROUND_BUY_TIME_MS = 7000;
@@ -406,7 +415,7 @@ export class LocalGameSession {
     const def = WEAPONS[weaponId];
     if (!def || !def.price) return;
     if (p.credits < def.price) return;
-    const buyablePrimary = ['ak47', 'm4', 'awp'];
+    const buyablePrimary = ['ak47', 'm4'];
     if (buyablePrimary.includes(weaponId)) {
       p.credits -= def.price;
       p.weapons[0] = weaponId;
@@ -572,14 +581,16 @@ export class LocalGameSession {
     }
 
     this.processReloads();
-    processPickups(
+    const pickupTaken = processPickups(
       this.pickups,
       Array.from(this.players.values()),
       (w) => WEAPONS[w]?.magazineSize ?? 30,
       now,
-      this.onPickup,
       (w) => WEAPONS[w]?.maxReserve
     );
+    for (const t of pickupTaken) {
+      this.onPickup?.(t.type);
+    }
 
     const relocateInterval = Math.floor(now / PICKUP_RELOCATE_MS);
     if (relocateInterval !== this.lastPickupRelocateInterval) {

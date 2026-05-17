@@ -1,11 +1,11 @@
-import type { MapConfig, Player } from 'top-down-cs-shared';
-import { MapRenderer } from './MapRenderer';
+import type { MapConfig, Player } from 'shootout-shared';
 import {
-  type InputState,
-  type LocalPlayerState,
-  updateLocalPlayer,
+  type GameInput as InputState,
+  type PlayerPhysicsState as LocalPlayerState,
+  updatePlayerPhysics as updateLocalPlayer,
   PLAYER_RADIUS,
-} from './Physics';
+} from 'shootout-shared';
+import { MapRenderer } from './MapRenderer';
 import { InterpolationBuffer } from './InterpolationBuffer';
 
 export interface ServerPlayer {
@@ -44,7 +44,6 @@ const WEAPON_TO_POSE: Record<string, SpritePose> = {
   pm: 'silencer',
   m4: 'machine',
   ak47: 'machine',
-  awp: 'gun',
 };
 
 // Размеры оружия для отрисовки (длина ствола от центра персонажа)
@@ -52,7 +51,6 @@ const WEAPON_VISUALS: Record<string, { len: number; width: number; color: string
   pm: { len: 20, width: 3, color: '#aaa' },
   m4: { len: 28, width: 3.5, color: '#666' },
   ak47: { len: 30, width: 3.5, color: '#8B7355' },
-  awp: { len: 42, width: 4, color: '#4a5568' },
 };
 
 interface BulletTrail {

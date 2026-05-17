@@ -11,8 +11,11 @@ export function useSocket() {
   const auth = useAuthStore();
 
   function connect() {
-    if (socket.value?.connected) {
-      isConnected.value = true;
+    if (socket.value) {
+      if (!socket.value.connected) {
+        socket.value.connect();
+      }
+      isConnected.value = socket.value.connected;
       return socket.value;
     }
 

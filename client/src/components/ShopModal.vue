@@ -34,9 +34,8 @@ interface ShopItem {
 const AMMO_PRICE = 200;
 
 const weaponItems: ShopItem[] = [
-  { id: 'm4', name: 'M4A1', price: 3500, type: 'weapon', slot: 0 },
-  { id: 'ak47', name: 'AK-47', price: 5000, type: 'weapon', slot: 0 },
-  { id: 'awp', name: 'AWP', price: 4750, type: 'weapon', slot: 0 },
+  { id: 'm4', name: 'M4A1', price: 3000, type: 'weapon', slot: 0 },
+  { id: 'ak47', name: 'AK-47', price: 4000, type: 'weapon', slot: 0 },
 ];
 
 const ammoItem: ShopItem = { id: 'ammo', name: 'Патроны', price: AMMO_PRICE, type: 'ammo' };

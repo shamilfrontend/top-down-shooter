@@ -1,4 +1,10 @@
-import type { RoomState, RoomSlot, PendingPlayer, BotDifficulty, RoomListItem } from 'top-down-cs-shared';
+import type {
+  RoomState,
+  RoomSlot,
+  PendingPlayer,
+  BotDifficulty,
+  RoomListItem
+} from 'shootout-shared';
 import type { TeamId } from '../types/lobby';
 
 const DEFAULT_MAP = 'dust2';
@@ -38,6 +44,7 @@ class RoomStoreClass {
     const half = Math.floor(maxPlayers / 2);
     const hostSlotIndex = hostTeam === 'ct' ? 0 : half;
     const slots: RoomSlot[] = [];
+
     for (let i = 0; i < maxPlayers; i++) {
       const team: TeamId = i < half ? 'ct' : 't';
       if (i === hostSlotIndex) {
@@ -50,6 +57,7 @@ class RoomStoreClass {
         slots.push({ team, player: null, bot: null });
       }
     }
+
     const room: Room = {
       id,
       name: options.name,
@@ -63,6 +71,7 @@ class RoomStoreClass {
       status: 'waiting',
       createdAt: new Date(),
     };
+
     this.rooms.set(id, room);
     return room;
   }

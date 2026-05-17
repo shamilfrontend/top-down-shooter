@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { MapRenderer } from '@/game/MapRenderer';
-import type { MapConfig } from 'top-down-cs-shared';
+import type { MapConfig } from 'shootout-shared';
 
 const props = defineProps<{
   map: MapConfig | null;

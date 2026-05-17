@@ -1,5 +1,5 @@
 {
-  "name": "top-down-cs-shared",
+  "name": "shootout-shared",
   "version": "1.0.0",
   "private": true,
   "main": "./dist/index.js",

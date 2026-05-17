@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "top-down-cs-shared": "*",
+    "shootout-shared": "*",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5",
     "pinia": "^2.1.7",

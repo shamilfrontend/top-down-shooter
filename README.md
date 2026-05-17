@@ -1,6 +1,6 @@
-# Top Down CS
+# ShootOut
 
-Top Down шутер в стиле Counter-Strike.
+ShootOut шутер в стиле Counter-Strike.
 
 ## Стек
 

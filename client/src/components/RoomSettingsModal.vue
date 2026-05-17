@@ -197,7 +197,7 @@ function addBot(slotIndex: number, difficulty: 'easy' | 'medium' | 'hard') {
 
         <div class="controls">
           <button
-            v-if="iHaveSlot"
+            v-if="iHaveSlot && !isHost"
             type="button"
             class="btn-cs"
             @click="toggleReady"
