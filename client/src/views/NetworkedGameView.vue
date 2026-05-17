@@ -64,7 +64,11 @@ const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(canvasWrapRef);
 const roomId = ref<string | null>(null);
 const mapId = ref('dust2');
 
-const gameOver = ref<{ winner: 'ct' | 't'; players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }> } | null>(null);
+const gameOver = ref<{
+  winner: 'ct' | 't';
+  players: Array<{ id: string; username: string; team: string; kills: number; deaths: number }>;
+  reason?: string;
+} | null>(null);
 
 interface KillFeedEntry {
   killerName: string;
@@ -107,16 +111,10 @@ watch(isConnected, (connected) => {
   if (!connected && roomId.value) connectionLost.value = true;
 });
 
-function exitToLobby() {
+function goHome() {
   connectionLost.value = false;
   roomStore.leaveRoom();
   gameOver.value = null;
-  router.push({ name: 'home' });
-}
-
-function backToRoom() {
-  gameOver.value = null;
-  connectionLost.value = false;
   router.push({ name: 'home' });
 }
 
@@ -196,6 +194,7 @@ async function init() {
       damage?: number;
       attackerId?: string;
       victimId?: string;
+      reason?: string;
     }) => {
       if (data.type === 'shot') {
         if (data.weapon) playShot(data.weapon);
@@ -231,7 +230,11 @@ async function init() {
       } else if ((data.type === 'pickupMedkit' || data.type === 'pickupArmor') && data.playerId === mySocketId) {
         playPickupMedkit();
       } else if (data.type === 'gameOver' && data.winner && data.players) {
-        gameOver.value = { winner: data.winner, players: data.players };
+        gameOver.value = {
+          winner: data.winner,
+          players: data.players,
+          reason: data.reason,
+        };
         if (data.winner === 'ct') playWinCt();
         else playWinTer();
       }
@@ -327,7 +330,7 @@ watch(() => route.params.roomId, () => {
         >
           {{ isMuted ? '🔇' : '🔊' }}
         </button>
-        <button type="button" class="btn-cs" @click="exitToLobby">Выйти</button>
+        <button type="button" class="btn-cs" @click="goHome">Выйти</button>
         <button
           type="button"
           class="btn-fullscreen"
@@ -422,8 +425,8 @@ watch(() => route.params.roomId, () => {
           <button type="button" class="btn-cs btn-cs-primary pause-btn" @click="pauseOpen = false">
             Продолжить (ESC)
           </button>
-          <button type="button" class="btn-cs pause-btn" @click="exitToLobby">
-            Выйти в лобби
+          <button type="button" class="btn-cs pause-btn" @click="goHome">
+            На главную
           </button>
         </div>
       </div>
@@ -439,14 +442,22 @@ watch(() => route.params.roomId, () => {
       <div v-if="connectionLost" class="connection-lost-overlay">
         <div class="connection-lost-card panel-cs">
           <h2 class="connection-lost-title">Потеряно соединение с сервером</h2>
-          <button type="button" class="btn-cs btn-cs-primary" @click="exitToLobby">
-            В лобби
+          <button type="button" class="btn-cs btn-cs-primary" @click="goHome">
+            Вернуться на главную
           </button>
         </div>
       </div>
       <div v-if="gameOver" class="game-over-overlay">
         <div class="game-over-card panel-cs">
-          <h2 class="game-over-title">{{ gameOver.winner === 'ct' ? 'Спецназ одержал победу!' : 'Террористы победили!' }}</h2>
+          <h2 class="game-over-title">
+            {{
+              gameOver.reason === 'opponentLeft'
+                ? 'Противник вышел — победа!'
+                : gameOver.winner === 'ct'
+                  ? 'Спецназ одержал победу!'
+                  : 'Террористы победили!'
+            }}
+          </h2>
           <div class="stats-table">
             <div class="stats-header">
               <span>Игрок</span>
@@ -467,11 +478,8 @@ watch(() => route.params.roomId, () => {
             </div>
           </div>
           <div class="game-over-actions">
-          <button type="button" class="btn-cs btn-cs-primary" @click="backToRoom">
-            Вернуться в комнату
-          </button>
-          <button type="button" class="btn-cs btn-cs-secondary" @click="exitToLobby">
-            В лобби
+          <button type="button" class="btn-cs btn-cs-primary" @click="goHome">
+            Вернуться на главную
           </button>
         </div>
         </div>

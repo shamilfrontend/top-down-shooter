@@ -671,6 +671,46 @@ class GameSession {
   removePlayer(socketId: string) {
     if (!socketId.startsWith('bot-')) this.players.delete(socketId);
   }
+
+  forfeitDueToPlayerLeave(leaverSocketId: string): boolean {
+    const room = RoomStore.get(this.roomId);
+    if (!room || room.status !== 'playing') return false;
+
+    const inSession = this.players.get(leaverSocketId);
+    let leaverTeam: 'ct' | 't' | undefined = inSession?.team;
+    if (!leaverTeam) {
+      const slot = room.slots.find((s) => s.player?.socketId === leaverSocketId);
+      leaverTeam = slot?.team;
+    }
+    if (!leaverTeam) return false;
+
+    const winner: 'ct' | 't' = leaverTeam === 'ct' ? 't' : 'ct';
+    const finalPlayers = Array.from(this.players.values()).map((p) => ({
+      id: p.socketId,
+      username: p.username,
+      team: p.team,
+      kills: p.kills,
+      deaths: p.deaths,
+    }));
+
+    this.removePlayer(leaverSocketId);
+    this.stop();
+    room.status = 'waiting';
+    for (const slot of room.slots) {
+      if (slot.player) slot.player.isReady = false;
+    }
+
+    this.io.to(this.roomId).emit('game:event', {
+      type: 'gameOver',
+      winner,
+      players: finalPlayers,
+      reason: 'opponentLeft',
+    });
+    this.io.to(this.roomId).emit('room:update', RoomStore.toState(room));
+    this.io.emit('room:list', RoomStore.list());
+    sessions.delete(this.roomId);
+    return true;
+  }
 }
 
 const sessions = new Map<string, GameSession>();
@@ -704,4 +744,10 @@ export function stopGameSession(roomId: string) {
     session.stop();
     sessions.delete(roomId);
   }
+}
+
+export function forfeitMatch(roomId: string, leaverSocketId: string): void {
+  const session = sessions.get(roomId);
+  if (!session) return;
+  session.forfeitDueToPlayerLeave(leaverSocketId);
 }

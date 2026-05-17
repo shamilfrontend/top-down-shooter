@@ -184,6 +184,7 @@ onUnmounted(() => {
         Тренировка
       </router-link>
 
+      <!-- Временно скрыто
       <router-link
 				to="/settings"
 				class="menu-item"
@@ -191,6 +192,7 @@ onUnmounted(() => {
 			>
         Настройки
       </router-link>
+      -->
 
       <button
 				type="button"

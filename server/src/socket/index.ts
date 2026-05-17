@@ -4,7 +4,8 @@ import { RoomStore } from '../game/RoomStore';
 import {
   startGameSession,
   getGameSession,
-  stopGameSession
+  stopGameSession,
+  forfeitMatch,
 } from '../game/GameSession';
 
 interface SocketAuth {
@@ -74,6 +75,11 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on('room:leave', () => {
+      const roomBeforeLeave = RoomStore.getRoomBySocket(socket.id);
+      if (roomBeforeLeave?.status === 'playing') {
+        forfeitMatch(roomBeforeLeave.id, socket.id);
+      }
+
       const result = RoomStore.leave(socket.id);
       if (result) {
         socket.leave(result.roomId);
@@ -193,9 +199,8 @@ export function setupSocketHandlers(io: Server): void {
     socket.on('disconnect', () => {
       const room = RoomStore.getRoomBySocket(socket.id);
 
-      if (room) {
-        const session = getGameSession(room.id);
-        if (session) session.removePlayer(socket.id);
+      if (room?.status === 'playing') {
+        forfeitMatch(room.id, socket.id);
       }
 
       const result = RoomStore.leave(socket.id);
